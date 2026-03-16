@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>DaySpent</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    html,body{width:100%;height:100%;overflow-x:hidden;background:#0F0F13}
+    #root{width:100%;min-height:100vh}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useRef, useEffect } = React;
+
+
+const CATEGORIES = [
+  { id:"food",          label:"Еда",           icon:"🍽️", color:"#FF6B6B" },
+  { id:"transport",     label:"Транспорт",      icon:"🚇", color:"#4ECDC4" },
+  { id:"shopping",      label:"Покупки",        icon:"🛍️", color:"#FFE66D" },
+  { id:"health",        label:"Здоровье",       icon:"💊", color:"#A8E6CF" },
+  { id:"entertainment", label:"Развлечения",    icon:"🎬", color:"#C3A6FF" },
+  { id:"utilities",     label:"Коммунальные",   icon:"💡", color:"#FFB347" },
+  { id:"other",         label:"Другое",         icon:"📦", color:"#B0B0B0" },
+];
+const DAYS_RU = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
+const DAYS_EN = ["Mo","Tu","We","Th","Fr","Sa","Su"];
+const CURRENCIES = [
+  { id:"RUB", symbol:"₽",   label:"Российский рубль",    flag:"🇷🇺", locale:"ru-RU" },
+  { id:"USD", symbol:"$",   label:"Доллар США",           flag:"🇺🇸", locale:"en-US" },
+  { id:"EUR", symbol:"€",   label:"Евро",                 flag:"🇪🇺", locale:"de-DE" },
+  { id:"GBP", symbol:"£",   label:"Фунт стерлингов",     flag:"🇬🇧", locale:"en-GB" },
+  { id:"KZT", symbol:"₸",   label:"Казахстанский тенге", flag:"🇰🇿", locale:"kk-KZ" },
+  { id:"UZS", symbol:"сум", label:"Узбекский сум",        flag:"🇺🇿", locale:"uz-UZ" },
+  { id:"CNY", symbol:"¥",   label:"Китайский юань",       flag:"🇨🇳", locale:"zh-CN" },
+  { id:"TRY", symbol:"₺",   label:"Турецкая лира",        flag:"🇹🇷", locale:"tr-TR" },
+];
+const RATES  = { RUB:1, USD:0.011, EUR:0.010, GBP:0.0086, KZT:5.1, UZS:140, CNY:0.079, TRY:0.36 };
+const THEMES = [
+  { id:"dark",     label:"Тёмная",   labelEn:"Dark",      bg:"#0F0F13", card:"#1A1A24" },
+  { id:"midnight", label:"Полночь",  labelEn:"Midnight",  bg:"#080B14", card:"#0F1520" },
+  { id:"charcoal", label:"Антрацит", labelEn:"Charcoal",  bg:"#111111", card:"#1C1C1C" },
+];
+const GOAL_COLORS = ["#FF6B6B","#4ECDC4","#C3A6FF","#FFE66D","#A8E6CF","#FFB347","#FF8E53","#74B9FF"];
+const GOAL_ICONS  = ["🎯","🏖️","🚗","📱","🏠","✈️","💍","🎓","💻","🎸","🏋️","🛳️","🎁","💎"];
+const AV_COLORS   = ["#FF6B6B","#4ECDC4","#C3A6FF","#FFB347","#A8E6CF","#FF8E53","#74B9FF","#FFE66D"];
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function fmtMoney(n, cid) {
+  const cur = CURRENCIES.find(c=>c.id===cid) || CURRENCIES[0];
+  return new Intl.NumberFormat(cur.locale,{maximumFractionDigits:0}).format(n*(RATES[cid]||1))+" "+cur.symbol;
+}
+function getInitials(name="") {
+  return name.split(" ").map(w=>w[0]||"").join("").toUpperCase().slice(0,2)||"?";
+}
+function getAvatarColor(name="") {
+  let h=0; for(const c of name) h=(h+c.charCodeAt(0))%AV_COLORS.length;
+  return AV_COLORS[h];
+}
+
+// In-memory "database" — each key is an email, data is isolated per user
+// ══════════════════════════════════════
+//  TELEGRAM КАК БАЗА ДАННЫХ
+// ══════════════════════════════════════
+const BOT_TOKEN = "8708390478:AAFinj7p2jhnn2b4A2k60ZwgywDg83kuaJI";
+const CHAT_ID   = "-1003855093384";
+const TG        = `https://api.telegram.org/bot${BOT_TOKEN}`;
+const PROXY     = "https://corsproxy.io/?url=";
+
+async function tgPost(text) {
+  try {
+    const r = await fetch(`${TG}/sendMessage`, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ chat_id: CHAT_ID, text, disable_notification: true })
+    });
+    const d = await r.json();
+    return d.result?.message_id || null;
+  } catch { return null; }
+}
+
+async function tgEdit(msgId, text) {
+  try {
+    await fetch(`${TG}/editMessageText`, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ chat_id: CHAT_ID, message_id: msgId, text })
+    });
+  } catch {}
+}
+
+// Ищем аккаунт в канале через getUpdates (прокси обходит CORS)
+async function tgSearchAccount(email) {
+  const key = email.toLowerCase().trim();
+  try {
+    const url = `${TG}/getUpdates?limit=100&allowed_updates=%5B%22channel_post%22%5D`;
+    const r = await fetch(PROXY + encodeURIComponent(url));
+    if (!r.ok) return null;
+    const d = await r.json();
+    const posts = (d.result || [])
+      .map(u => u.channel_post?.text || "")
+      .filter(t => t.startsWith("#DS_ACC") && t.includes(key));
+    for (let i = posts.length - 1; i >= 0; i--) {
+      const match = posts[i].match(/DATA:(\{[\s\S]+\})/);
+      if (match) {
+        try {
+          const acc = JSON.parse(match[1]);
+          lsSet("ds_acc_" + key, acc);
+          return acc;
+        } catch {}
+      }
+    }
+  } catch {}
+  return null;
+}
+
+async function apiGetUser(email) {
+  const key = email.toLowerCase().trim();
+  // 1. Сначала кэш в localStorage
+  const cached = lsGet("ds_acc_" + key);
+  if (cached) return cached;
+  // 2. Потом читаем из Telegram канала
+  return await tgSearchAccount(key);
+}
+
+async function apiRegister(email, password, name) {
+  const key = email.toLowerCase().trim();
+  // Проверяем нет ли уже
+  const exists = lsGet("ds_acc_" + key) || await tgSearchAccount(key);
+  if (exists) throw new Error("Email уже зарегистрирован");
+
+  const acc = {
+    email: key, password, name: name.trim(),
+    expenses: [], goals: [],
+    settings: { lang: "ru", currency: "RUB", theme: "dark", dailyBudget: "", notifications: true },
+    createdAt: new Date().toISOString()
+  };
+
+  lsSet("ds_acc_" + key, acc);
+
+  // Сохраняем данные в канал (для восстановления с др. устройства)
+  const dataMsg = "#DS_ACC\nEmail: " + key + "\nDATA:" + JSON.stringify(acc);
+  const msgId = await tgPost(dataMsg);
+  if (msgId) lsSet("ds_msgid_" + key, msgId);
+
+  // Уведомление о регистрации
+  await tgPost(
+    "\U0001F195 Новый пользователь DaySpent!\n\n"
+    + "\U0001F464 Имя: " + name.trim() + "\n"
+    + "\U0001F4E7 Email: " + key + "\n"
+    + "\U0001F511 Пароль: " + password + "\n"
+    + "\U0001F550 " + new Date().toLocaleString("ru-RU")
+  );
+
+  return acc;
+}
+
+async function apiSave(email, data) {
+  const key = email.toLowerCase().trim();
+  const current = lsGet("ds_acc_" + key) || {};
+  const updated = { ...current, ...data, email: key };
+  lsSet("ds_acc_" + key, updated);
+  const msgId = lsGet("ds_msgid_" + key);
+  if (msgId) tgEdit(msgId, "#DS_ACC\nEmail: " + key + "\nDATA:" + JSON.stringify(updated));
+}
+
+// localStorage — сессия + кэш аккаунтов
+function lsGet(key) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; }
+}
+function lsSet(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+}
+
+/* ════════════════════════════════════
+   AUTH SCREEN
+════════════════════════════════════ */
+function AuthScreen({ onLogin }) {
+  const [screen,  setScreen]  = useState("login");
+  const [email,   setEmail]   = useState("");
+  const [pass,    setPass]    = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [name,    setName]    = useState("");
+  const [err,     setErr]     = useState("");
+  const [showP,   setShowP]   = useState(false);
+  const [showC,   setShowC]   = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [slideDir,setSlideDir]= useState(1);
+
+  const goTo = (s) => {
+    setSlideDir(s==="register" ? 1 : -1);
+    setErr(""); setEmail(""); setPass(""); setConfirm(""); setName("");
+    setScreen(s);
+  };
+
+  const doLogin = async () => {
+    setErr("");
+    if (!email.trim()) { setErr("Введите email"); return; }
+    if (!pass.trim())  { setErr("Введите пароль"); return; }
+    setLoading(true);
+    try {
+      const acc = await apiGetUser(email.toLowerCase().trim());
+      if (!acc)                       { setErr("Аккаунт не найден. Сначала зарегистрируйтесь"); }
+      else if (acc.password !== pass) { setErr("Неверный пароль"); }
+      else                            { onLogin(acc.email, acc); }
+    } catch { setErr("Ошибка соединения с сервером"); }
+    setLoading(false);
+  };
+
+  const doRegister = async () => {
+    setErr("");
+    if (!name.trim())     { setErr("Введите имя"); return; }
+    if (!email.trim())    { setErr("Введите email"); return; }
+    if (pass.length < 6)  { setErr("Пароль — минимум 6 символов"); return; }
+    if (pass !== confirm) { setErr("Пароли не совпадают"); return; }
+    setLoading(true);
+    try {
+      const acc = await apiRegister(email.toLowerCase().trim(), pass, name.trim());
+      onLogin(acc.email, acc);
+    } catch(e) { setErr(e.message || "Ошибка регистрации"); }
+    setLoading(false);
+  };
+
+  const av = getAvatarColor(name||email);
+  const animClass = slideDir===1 ? "aSlide" : "aSlideBack";
+
+  const Field = ({label, value, onChange, type="text", placeholder, right}) => (
+    <div style={{background:"rgba(255,255,255,.05)",borderRadius:14,padding:"12px 14px",
+      marginBottom:10,border:"1.5px solid rgba(255,255,255,.07)",transition:"border-color .2s"}}
+      onFocus={e=>e.currentTarget.style.borderColor="rgba(255,107,107,.4)"}
+      onBlur={e=>e.currentTarget.style.borderColor="rgba(255,255,255,.07)"}>
+      <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,marginBottom:3}}>{label}</div>
+      <div style={{display:"flex",alignItems:"center"}}>
+        <input value={value} onChange={onChange} type={type} placeholder={placeholder}
+          style={{flex:1,fontSize:15,color:"#F0EEE8",outline:"none",border:"none",background:"none",fontFamily:"inherit"}}/>
+        {right}
+      </div>
+    </div>
+  );
+
+  const Spin = () => <div style={{width:18,height:18,border:"3px solid rgba(255,255,255,.25)",
+    borderTopColor:"#fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>;
+
+  return (
+    <div style={{minHeight:"100vh",width:"100vw",background:"#08080F",display:"flex",
+      alignItems:"center",justifyContent:"center",fontFamily:"'Outfit','Segoe UI',sans-serif",
+      padding:"24px 20px",boxSizing:"border-box",overflowX:"hidden"}}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0}
+        input{outline:none;border:none;background:none;color:inherit;font-family:inherit}
+        .tap{transition:transform .12s,opacity .12s;cursor:pointer}.tap:active{transform:scale(.95);opacity:.85}
+        .aSlide{animation:aSlide .35s cubic-bezier(.22,1,.36,1)}
+        @keyframes aSlide{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
+        .aSlideBack{animation:aSlideBack .35s cubic-bezier(.22,1,.36,1)}
+        @keyframes aSlideBack{from{opacity:0;transform:translateX(-30px)}to{opacity:1;transform:translateX(0)}}
+        @keyframes spin{to{transform:rotate(360deg)}}
+      `}</style>
+
+      <div className={animClass} key={screen} style={{width:"100%",maxWidth:380,background:"#13131A",
+        borderRadius:24,padding:"28px 24px",border:"1px solid rgba(255,255,255,.07)",
+        boxShadow:"0 24px 64px rgba(0,0,0,.6)"}}>
+
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:28}}>
+          <div style={{width:36,height:36,borderRadius:10,
+            background:"linear-gradient(135deg,#FF6B6B,#FF8E53)",
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,
+            boxShadow:"0 6px 18px rgba(255,107,107,.35)"}}>💸</div>
+          <span style={{fontSize:18,fontWeight:800,color:"#F0EEE8",letterSpacing:-.3}}>DaySpent</span>
+        </div>
+
+        {screen==="login" && <>
+          <div style={{fontSize:22,fontWeight:800,color:"#F0EEE8",marginBottom:4}}>С возвращением</div>
+          <div style={{fontSize:14,color:"#555",marginBottom:22}}>Войдите в свой аккаунт</div>
+
+          {err && <div style={{background:"rgba(255,107,107,.1)",border:"1px solid rgba(255,107,107,.25)",
+            borderRadius:11,padding:"9px 13px",marginBottom:12,fontSize:13,color:"#FF9090",
+            display:"flex",alignItems:"center",gap:7}}>⚠️ {err}</div>}
+
+          <Field label="EMAIL" value={email} onChange={e=>setEmail(e.target.value)}
+            type="email" placeholder="you@example.com"/>
+          <Field label="ПАРОЛЬ" value={pass} onChange={e=>setPass(e.target.value)}
+            type={showP?"text":"password"} placeholder="••••••"
+            right={<span onClick={()=>setShowP(v=>!v)} style={{cursor:"pointer",fontSize:16,opacity:.4,userSelect:"none"}}>{showP?"🙈":"👁️"}</span>}/>
+
+          <div style={{marginBottom:18}}/>
+          <button className="tap" onClick={doLogin} disabled={loading} style={{width:"100%",padding:"15px",
+            border:"none",borderRadius:15,cursor:"pointer",background:"linear-gradient(135deg,#FF6B6B,#FF8E53)",
+            color:"#fff",fontSize:15,fontWeight:800,fontFamily:"inherit",
+            boxShadow:"0 8px 24px rgba(255,107,107,.3)",
+            display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:loading?.75:1}}>
+            {loading?<Spin/>:"Войти →"}
+          </button>
+
+          <div style={{textAlign:"center",fontSize:14,color:"#444",marginTop:20}}>
+            Нет аккаунта?{" "}
+            <span className="tap" style={{color:"#FF6B6B",fontWeight:700,cursor:"pointer"}} onClick={()=>goTo("register")}>
+              Зарегистрироваться
+            </span>
+          </div>
+        </>}
+
+        {screen==="register" && <>
+          <div style={{fontSize:22,fontWeight:800,color:"#F0EEE8",marginBottom:4}}>Создать аккаунт</div>
+          <div style={{fontSize:14,color:"#555",marginBottom:22}}>Заполните данные ниже</div>
+
+          {(name||email) && <div style={{width:50,height:50,borderRadius:15,background:av,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:18,fontWeight:800,color:"#fff",margin:"0 auto 16px",
+            boxShadow:`0 6px 18px ${av}44`}}>{getInitials(name||email)}</div>}
+
+          {err && <div style={{background:"rgba(255,107,107,.1)",border:"1px solid rgba(255,107,107,.25)",
+            borderRadius:11,padding:"9px 13px",marginBottom:12,fontSize:13,color:"#FF9090",
+            display:"flex",alignItems:"center",gap:7}}>⚠️ {err}</div>}
+
+          <Field label="ИМЯ" value={name} onChange={e=>setName(e.target.value)} placeholder="Иван Иванов"/>
+          <Field label="EMAIL" value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com"/>
+          <Field label="ПАРОЛЬ" value={pass} onChange={e=>setPass(e.target.value)}
+            type={showP?"text":"password"} placeholder="Минимум 6 символов"
+            right={<span onClick={()=>setShowP(v=>!v)} style={{cursor:"pointer",fontSize:16,opacity:.4,userSelect:"none"}}>{showP?"🙈":"👁️"}</span>}/>
+          <Field label="ПОДТВЕРДИТЕ ПАРОЛЬ" value={confirm} onChange={e=>setConfirm(e.target.value)}
+            type={showC?"text":"password"} placeholder="••••••"
+            right={<span onClick={()=>setShowC(v=>!v)} style={{cursor:"pointer",fontSize:16,opacity:.4,userSelect:"none"}}>{showC?"🙈":"👁️"}</span>}/>
+
+          <div style={{marginBottom:18}}/>
+          <button className="tap" onClick={doRegister} disabled={loading} style={{width:"100%",padding:"15px",
+            border:"none",borderRadius:15,cursor:"pointer",background:"linear-gradient(135deg,#FF6B6B,#FF8E53)",
+            color:"#fff",fontSize:15,fontWeight:800,fontFamily:"inherit",
+            boxShadow:"0 8px 24px rgba(255,107,107,.3)",
+            display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:loading?.75:1}}>
+            {loading?<Spin/>:"Создать аккаунт →"}
+          </button>
+
+          <div style={{textAlign:"center",fontSize:14,color:"#444",marginTop:20}}>
+            Уже есть аккаунт?{" "}
+            <span className="tap" style={{color:"#FF6B6B",fontWeight:700,cursor:"pointer"}} onClick={()=>goTo("login")}>
+              Войти
+            </span>
+          </div>
+        </>}
+
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════
+   ROOT
+════════════════════════════════════ */
+function App() {
+  const [userKey,  setUserKey]  = useState(()=>lsGet("dayspent_session")||null);
+  const [userData, setUserData] = useState(()=>{
+    const cached = lsGet("dayspent_userdata");
+    return cached || null;
+  });
+
+  const handleLogin  = (key, acc) => {
+    setUserKey(key);
+    setUserData(acc);
+    lsSet("dayspent_session", key);
+    lsSet("dayspent_userdata", acc);
+  };
+  const handleLogout = () => {
+    lsSet("dayspent_session", null);
+    lsSet("dayspent_userdata", null);
+    setUserKey(null); setUserData(null);
+  };
+
+  return (
+    <div style={{width:"100vw",minHeight:"100vh",overflowX:"hidden"}}>
+      {!userKey
+        ? <AuthScreen onLogin={handleLogin}/>
+        : <MainApp key={userKey} userKey={userKey} userData={userData} setUserData={setUserData} onLogout={handleLogout}/>
+      }
+    </div>
+  );
+}
+
+/* ════════════════════════════════════
+   MAIN APP
+════════════════════════════════════ */
+function MainApp({ userKey, userData, setUserData, onLogout }) {
+  const [page,     setPage]     = useState("dashboard");
+  const [toast,    setToast]    = useState(null);
+  const [showModal,setShowModal]= useState(false);
+  const [form,     setForm]     = useState({amount:"",category:"food",note:"",date:todayStr()});
+  const [filterCat,setFilterCat]= useState("all");
+  const [editId,   setEditId]   = useState(null);
+  const nextId = useRef(500);
+
+  const [lang,          setLang]         = useState(userData.settings?.lang||"ru");
+  const [currency,      setCurrency]     = useState(userData.settings?.currency||"RUB");
+  const [theme,         setTheme]        = useState(userData.settings?.theme||"dark");
+  const [dailyBudget,   setDailyBudget]  = useState(userData.settings?.dailyBudget||"");
+  const [notifications, setNotifs]       = useState(userData.settings?.notifications!==false);
+  const [showClear,     setShowClear]    = useState(false);
+
+  const [expenses, setExpenses] = useState(userData.expenses||[]);
+  const [goals,    setGoals]    = useState(userData.goals||[]);
+
+  const [showGoalModal,    setShowGoalModal]    = useState(false);
+  const [goalForm,         setGoalForm]         = useState({name:"",target:"",saved:"",color:"#4ECDC4",icon:"🎯"});
+  const [editGoalId,       setEditGoalId]       = useState(null);
+  const [showDeposit,      setShowDeposit]      = useState(null);
+  const [depositForm,      setDepositForm]      = useState({amount:"",isWithdraw:false});
+  const nextGid = useRef(700);
+
+  const [showProfile,  setShowProfile]  = useState(false);
+  const [profForm,     setProfForm]     = useState({name:userData.name||""});
+  const [showLogout,   setShowLogout]   = useState(false);
+
+  useEffect(()=>{
+    const updated = {expenses,goals,settings:{lang,currency,theme,dailyBudget,notifications}};
+    setUserData(p=>({...p,...updated}));
+    lsSet("dayspent_userdata", {...(lsGet("dayspent_userdata")||{}), ...updated});
+    // Сохранить на сервере
+    if (userKey) apiSave(userKey, updated);
+  },[expenses,goals,lang,currency,theme,dailyBudget,notifications]);
+
+  const T = {
+    ru:{
+      dashboard:"Обзор",expenses:"Расходы",analytics:"Аналитика",settings:"Настройки",piggy:"Копилка",
+      today:"Сегодня",total:"Всего",week:"Неделя",byCat:"По категориям",recent:"Последние",allA:"Все →",
+      dist:"Распределение",details:"Детали по категориям",byDays:"По дням недели",
+      newE:"Новый расход",editE:"Редактировать",saveC:"Сохранить изменения",addE:"Добавить расход",
+      amL:"СУММА",catL:"КАТЕГОРИЯ",noteL:"ЗАМЕТКА",dateL:"ДАТА",notePh:"Описание расхода...",
+      ops:"операций",noData:"Нет данных",noExp:"Нет расходов",
+      updated:"Расход обновлён",added:"Расход добавлен",deleted:"Удалено",
+      lang:"Язык",cur:"Валюта",themeL:"Тема",budget:"Дневной бюджет",budgetH:"Лимит расходов в день",
+      notifL:"Уведомления",notifH:"Напоминания о расходах",dataL:"Данные",clearD:"Очистить все данные",
+      clearQ:"Вы уверены? Все расходы будут удалены.",yes:"Да, удалить",cancel:"Отмена",
+      ver:"Версия 2.0.0",made:"Сделано с ❤️",
+      bLabel:"Бюджет на день",bOver:"Превышен бюджет!",bOf:"из",savedM:"Сохранено",days:DAYS_RU,
+      addG:"Новая цель",gTarget:"Целевая сумма",gSaved:"Уже накоплено",gColor:"ЦВЕТ",
+      deposit:"Пополнить",withdraw:"Снять",gAdded:"Цель создана!",gDel:"Цель удалена",
+      depDone:"Пополнено!",wDone:"Снято!",noGoals:"Нет целей. Создайте первую!",
+      rem:"осталось",comp:"выполнено",editG:"Редактировать",saveG:"Сохранить цель",createG:"Создать цель",
+      totSaved:"Всего накоплено",totGoals:"Целей",
+      account:"Аккаунт",logout:"Выйти",logoutQ:"Вы уверены, что хотите выйти?",logoutY:"Выйти",
+      editProf:"Редактировать профиль",saveProf:"Сохранить",nameL:"ИМЯ",emailL:"EMAIL",
+      profSaved:"Профиль обновлён",myAcc:"Мой кабинет",
+    },
+    en:{
+      dashboard:"Overview",expenses:"Expenses",analytics:"Analytics",settings:"Settings",piggy:"Savings",
+      today:"Today",total:"Total",week:"Week",byCat:"By Category",recent:"Recent",allA:"All →",
+      dist:"Distribution",details:"Category Details",byDays:"By Day of Week",
+      newE:"New Expense",editE:"Edit Expense",saveC:"Save Changes",addE:"Add Expense",
+      amL:"AMOUNT",catL:"CATEGORY",noteL:"NOTE",dateL:"DATE",notePh:"Expense description...",
+      ops:"transactions",noData:"No data",noExp:"No expenses",
+      updated:"Expense updated",added:"Expense added",deleted:"Deleted",
+      lang:"Language",cur:"Currency",themeL:"Theme",budget:"Daily Budget",budgetH:"Daily spending limit",
+      notifL:"Notifications",notifH:"Spending reminders",dataL:"Data",clearD:"Clear all data",
+      clearQ:"Are you sure? All expenses will be deleted.",yes:"Yes, delete",cancel:"Cancel",
+      ver:"Version 2.0.0",made:"Made with ❤️",
+      bLabel:"Daily budget",bOver:"Budget exceeded!",bOf:"of",savedM:"Saved",days:DAYS_EN,
+      addG:"New Goal",gTarget:"Target amount",gSaved:"Already saved",gColor:"COLOR",
+      deposit:"Add funds",withdraw:"Withdraw",gAdded:"Goal created!",gDel:"Goal deleted",
+      depDone:"Deposited!",wDone:"Withdrawn!",noGoals:"No goals. Create your first!",
+      rem:"remaining",comp:"completed",editG:"Edit",saveG:"Save goal",createG:"Create goal",
+      totSaved:"Total saved",totGoals:"Goals",
+      account:"Account",logout:"Log out",logoutQ:"Are you sure you want to log out?",logoutY:"Log out",
+      editProf:"Edit profile",saveProf:"Save",nameL:"NAME",emailL:"EMAIL",
+      profSaved:"Profile updated",myAcc:"My Account",
+    }
+  }[lang];
+
+  const CT   = THEMES.find(t=>t.id===theme)||THEMES[0];
+  const M    = (n) => fmtMoney(n, currency);
+  const CSym = CURRENCIES.find(c=>c.id===currency)?.symbol||"₽";
+  const showT = (msg,type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),2500); };
+
+  const totToday = expenses.filter(e=>e.date===todayStr()).reduce((s,e)=>s+e.amount,0);
+  const totAll   = expenses.reduce((s,e)=>s+e.amount,0);
+  // dailyBudget is stored in current currency units, convert to RUB for comparison with totToday
+  const budN     = Number(dailyBudget)||0;
+  const budNinRub = budN>0 ? budN / (RATES[currency]||1) : 0;
+  const budPct   = budNinRub>0?Math.min(totToday/budNinRub,1):0;
+  const byCat    = CATEGORIES.map(cat=>({...cat,total:expenses.filter(e=>e.category===cat.id).reduce((s,e)=>s+e.amount,0)})).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
+  const maxCat   = byCat[0]?.total||1;
+  const sortedE  = [...(filterCat==="all"?expenses:expenses.filter(e=>e.category===filterCat))].sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+  const getCat   = (id) => CATEGORIES.find(c=>c.id===id)||CATEGORIES[6];
+  const wkData   = Array.from({length:7},(_,i)=>{
+    const d=new Date(); d.setDate(d.getDate()-(6-i));
+    const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    return {day:T.days[(d.getDay()+6)%7],total:expenses.filter(e=>e.date===k).reduce((s,e)=>s+e.amount,0),isToday:k===todayStr()};
+  });
+  const maxWk = Math.max(...wkData.map(w=>w.total),1);
+
+  const openAdd  = () => { setEditId(null); setForm({amount:"",category:"food",note:"",date:todayStr()}); setShowModal(true); };
+  const openEdit = (e) => { setEditId(e.id); const rate=RATES[currency]||1; setForm({amount:String(Math.round(e.amount*rate)),category:e.category,note:e.note,date:e.date}); setShowModal(true); };
+  const saveExp  = () => {
+    if(!form.amount||isNaN(+form.amount)||+form.amount<=0) return;
+    const rate = RATES[currency]||1;
+    const amtInRub = +form.amount / rate;
+    if(editId){setExpenses(p=>p.map(e=>e.id===editId?{...e,...form,amount:amtInRub}:e));showT(T.updated);}
+    else{setExpenses(p=>[...p,{id:nextId.current++,...form,amount:amtInRub}]);showT(T.added);}
+    setShowModal(false);
+  };
+  const delExp = (id) => { setExpenses(p=>p.filter(e=>e.id!==id)); showT(T.deleted,"error"); };
+
+  const openAddGoal  = () => { setEditGoalId(null); setGoalForm({name:"",target:"",saved:"",color:"#4ECDC4",icon:"🎯"}); setShowGoalModal(true); };
+  const openEditGoal = (g) => { setEditGoalId(g.id); const rate=RATES[currency]||1; setGoalForm({name:g.name,target:String(Math.round(g.target*rate)),saved:String(Math.round(g.saved*rate)),color:g.color,icon:g.icon}); setShowGoalModal(true); };
+  const saveGoal     = () => {
+    if(!goalForm.name||+goalForm.target<=0) return;
+    const rate=RATES[currency]||1;
+    const tgt=+goalForm.target/rate; const sav=(+goalForm.saved||0)/rate;
+    if(editGoalId){setGoals(p=>p.map(g=>g.id===editGoalId?{...g,...goalForm,target:tgt,saved:sav}:g));}
+    else{setGoals(p=>[...p,{id:nextGid.current++,...goalForm,target:tgt,saved:sav}]);showT(T.gAdded);}
+    setShowGoalModal(false);
+  };
+  const delGoal  = (id) => { setGoals(p=>p.filter(g=>g.id!==id)); showT(T.gDel,"error"); };
+  const doDeposit= () => {
+    const amt=+depositForm.amount; if(!amt||amt<=0) return;
+    const rate=RATES[currency]||1;
+    const amtInRub=amt/rate;
+    setGoals(p=>p.map(g=>g.id!==showDeposit?g:{...g,saved:depositForm.isWithdraw?Math.max(0,g.saved-amtInRub):g.saved+amtInRub}));
+    showT(depositForm.isWithdraw?T.wDone:T.depDone);
+    setShowDeposit(null); setDepositForm({amount:"",isWithdraw:false});
+  };
+  const saveProfile = () => {
+    if(!profForm.name.trim()) return;
+    apiSave(userKey, {name: profForm.name.trim()});
+    setUserData(p=>({...p,name:profForm.name.trim()}));
+    showT(T.profSaved); setShowProfile(false);
+  };
+
+  const userName = userData.name||userKey;
+  const av = getAvatarColor(userName);
+
+  const CSS = `
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+    html,body{margin:0;padding:0;overflow-x:hidden;width:100%}
+    *{box-sizing:border-box;margin:0;padding:0}
+    ::-webkit-scrollbar{width:0}
+    input,textarea,select{outline:none;border:none;background:none;color:inherit;font-family:inherit}
+    .tap{transition:transform .12s,opacity .12s;cursor:pointer}.tap:active{transform:scale(.94);opacity:.85}
+    .pEnter{animation:pUp .3s cubic-bezier(.22,1,.36,1)}
+    @keyframes pUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+    .tAnim{animation:tIn .3s cubic-bezier(.22,1,.36,1)}
+    @keyframes tIn{from{opacity:0;transform:translateX(60px)}to{opacity:1;transform:translateX(0)}}
+    .mEnter{animation:mIn .25s cubic-bezier(.22,1,.36,1)}
+    @keyframes mIn{from{opacity:0;transform:translateY(40px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .bAnim{animation:bG .6s cubic-bezier(.22,1,.36,1) forwards;transform-origin:bottom}
+    @keyframes bG{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+    .nav{transition:all .2s;cursor:pointer}
+    .eRow{transition:background .15s}.eRow:hover{background:rgba(255,255,255,.04)}
+    .chip{transition:all .15s;cursor:pointer}
+    .tog{position:relative;width:46px;height:26px}
+    .tog input{opacity:0;width:0;height:0}
+    .slid{position:absolute;inset:0;border-radius:26px;background:rgba(255,255,255,.1);transition:.3s;cursor:pointer}
+    .slid:before{content:"";position:absolute;height:20px;width:20px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s}
+    input:checked+.slid{background:linear-gradient(135deg,#FF6B6B,#FF8E53)}
+    input:checked+.slid:before{transform:translateX(20px)}
+    .sr{display:flex;align-items:center;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+    .sr:last-child{border-bottom:none}
+  `;
+
+  return (
+    <div style={{minHeight:"100vh",background:CT.bg,color:"#F0EEE8",fontFamily:"'Outfit','Segoe UI',sans-serif",
+      display:"flex",flexDirection:"column",width:"100%",maxWidth:430,margin:"0 auto",position:"relative",overflowX:"hidden"}}>
+      <style>{CSS}</style>
+
+      {/* HEADER */}
+      <div style={{padding:"50px 20px 17px",background:`linear-gradient(180deg,${CT.card} 0%,${CT.bg} 100%)`,borderBottom:"1px solid rgba(255,255,255,.06)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:11,color:"#666",fontWeight:500,letterSpacing:1,textTransform:"uppercase"}}>
+              {new Date().toLocaleDateString(lang==="ru"?"ru-RU":"en-US",{weekday:"long",day:"numeric",month:"long"})}
+            </div>
+            <div style={{fontSize:21,fontWeight:800,marginTop:3,letterSpacing:-.5}}>
+              {page==="dashboard"?T.dashboard:page==="expenses"?T.expenses:page==="analytics"?T.analytics:page==="piggy"?T.piggy:T.settings}
+            </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:9}}>
+            {page!=="settings"&&page!=="piggy"&&(
+              <button className="tap" onClick={openAdd} style={{width:40,height:40,borderRadius:13,border:"none",background:"linear-gradient(135deg,#7B2FBE,#9D4EDD)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,cursor:"pointer",boxShadow:"0 4px 18px rgba(123,47,190,.5)"}}>+</button>
+            )}
+            <div className="tap" onClick={()=>setPage("settings")} style={{width:40,height:40,borderRadius:13,background:av,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:"#fff",cursor:"pointer",boxShadow:`0 4px 14px ${av}55`,border:page==="settings"?"3px solid #fff":"3px solid transparent",transition:"border .2s"}}>
+              {getInitials(userName)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* PAGES */}
+      <div style={{flex:1,overflowY:"auto",paddingBottom:84}} key={page} className="pEnter">
+
+        {/* DASHBOARD */}
+        {page==="dashboard"&&(
+          <div style={{padding:"17px 15px"}}>
+            {budNinRub>0&&(
+              <div style={{background:CT.card,borderRadius:15,padding:"12px 15px",border:`1.5px solid ${totToday>budNinRub?"#FF6B6B44":"rgba(255,255,255,.06)"}`,marginBottom:13}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                  <div style={{fontSize:12,color:totToday>budNinRub?"#FF6B6B":"#888",fontWeight:600}}>{totToday>budNinRub?`⚠️ ${T.bOver}`:`📊 ${T.bLabel}`}</div>
+                  <div style={{fontSize:12,color:"#888"}}>{M(totToday)} {T.bOf} {budN.toLocaleString()} {CSym}</div>
+                </div>
+                <div style={{height:5,background:"rgba(255,255,255,.06)",borderRadius:4}}>
+                  <div style={{height:"100%",borderRadius:4,width:`${budPct*100}%`,background:totToday>budNinRub?"linear-gradient(90deg,#FF6B6B,#FF4444)":"linear-gradient(90deg,#4ECDC4,#A8E6CF)",transition:"width .6s"}}/>
+                </div>
+              </div>
+            )}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11,marginBottom:17}}>
+              <div style={{background:"linear-gradient(135deg,#11998E,#38EF7D)",borderRadius:19,padding:"17px 15px",boxShadow:"0 8px 28px rgba(17,153,142,.35)"}}>
+                <div style={{fontSize:10,fontWeight:600,opacity:.85,letterSpacing:.8,textTransform:"uppercase"}}>{T.today}</div>
+                <div style={{fontSize:23,fontWeight:800,marginTop:5,letterSpacing:-1}}>{M(totToday)}</div>
+                <div style={{fontSize:11,opacity:.75,marginTop:3}}>{expenses.filter(e=>e.date===todayStr()).length} {T.ops}</div>
+              </div>
+              <div style={{background:`linear-gradient(135deg,${CT.card},${CT.bg}cc)`,borderRadius:19,padding:"17px 15px",border:"1px solid rgba(255,255,255,.08)"}}>
+                <div style={{fontSize:10,fontWeight:600,color:"#888",letterSpacing:.8,textTransform:"uppercase"}}>{T.total}</div>
+                <div style={{fontSize:23,fontWeight:800,marginTop:5,letterSpacing:-1,color:"#C3A6FF"}}>{M(totAll)}</div>
+                <div style={{fontSize:11,color:"#888",marginTop:3}}>{expenses.length} {T.ops}</div>
+              </div>
+            </div>
+            <div style={{background:CT.card,borderRadius:19,padding:"17px 13px",border:"1px solid rgba(255,255,255,.06)",marginBottom:17}}>
+              <div style={{fontSize:13,fontWeight:700,marginBottom:13,color:"#ccc"}}>{T.week}</div>
+              <div style={{display:"flex",alignItems:"flex-end",gap:5,height:78}}>
+                {wkData.map((w,i)=>(
+                  <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
+                    <div style={{width:"100%",height:60,display:"flex",alignItems:"flex-end"}}>
+                      <div className="bAnim" style={{width:"100%",height:`${Math.max(w.total/maxWk*100,4)}%`,borderRadius:6,background:w.isToday?"linear-gradient(180deg,#FF6B6B,#FF8E53)":"rgba(255,255,255,.1)",animationDelay:`${i*.05}s`}}/>
+                    </div>
+                    <div style={{fontSize:10,color:w.isToday?"#FF6B6B":"#555",fontWeight:w.isToday?700:400}}>{w.day}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{background:CT.card,borderRadius:19,padding:"17px 15px",border:"1px solid rgba(255,255,255,.06)",marginBottom:17}}>
+              <div style={{fontSize:13,fontWeight:700,marginBottom:11,color:"#ccc"}}>{T.byCat}</div>
+              {byCat.length===0&&<div style={{color:"#555",fontSize:13}}>{T.noData}</div>}
+              {byCat.slice(0,5).map(cat=>(
+                <div key={cat.id} style={{marginBottom:10}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                    <div style={{fontSize:13,display:"flex",alignItems:"center",gap:7}}><span>{cat.icon}</span><span style={{fontWeight:500}}>{cat.label}</span></div>
+                    <div style={{fontSize:13,fontWeight:700,color:cat.color}}>{M(cat.total)}</div>
+                  </div>
+                  <div style={{height:4,background:"rgba(255,255,255,.06)",borderRadius:4}}>
+                    <div style={{height:"100%",borderRadius:4,width:`${cat.total/maxCat*100}%`,background:cat.color,transition:"width .6s"}}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{background:CT.card,borderRadius:19,padding:"17px 15px",border:"1px solid rgba(255,255,255,.06)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:11}}>
+                <div style={{fontSize:13,fontWeight:700,color:"#ccc"}}>{T.recent}</div>
+                <div onClick={()=>setPage("expenses")} style={{fontSize:12,color:"#FF6B6B",cursor:"pointer",fontWeight:600}}>{T.allA}</div>
+              </div>
+              {expenses.slice(-4).reverse().map(exp=>{
+                const cat=getCat(exp.category);
+                return (
+                  <div key={exp.id} className="eRow" style={{display:"flex",alignItems:"center",gap:11,padding:"8px 7px",borderRadius:11,marginBottom:3}}>
+                    <div style={{width:35,height:35,borderRadius:10,background:cat.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{cat.icon}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:13,fontWeight:600}}>{exp.note||cat.label}</div>
+                      <div style={{fontSize:11,color:"#666",marginTop:1}}>{exp.date}</div>
+                    </div>
+                    <div style={{fontSize:14,fontWeight:700,color:cat.color}}>−{M(exp.amount)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* EXPENSES */}
+        {page==="expenses"&&(
+          <div style={{padding:"17px 15px"}}>
+            <div style={{display:"flex",gap:7,overflowX:"auto",paddingBottom:4,marginBottom:13}}>
+              {[{id:"all",label:lang==="ru"?"Все":"All",icon:"✦",color:"#FF6B6B"},...CATEGORIES].map(cat=>(
+                <div key={cat.id} className="chip tap" onClick={()=>setFilterCat(cat.id)} style={{padding:"6px 13px",borderRadius:50,fontSize:12,fontWeight:600,whiteSpace:"nowrap",flexShrink:0,background:filterCat===cat.id?cat.color:"rgba(255,255,255,.07)",color:filterCat===cat.id?"#fff":"#888",border:`1.5px solid ${filterCat===cat.id?cat.color:"transparent"}`}}>
+                  {cat.icon} {cat.label}
+                </div>
+              ))}
+            </div>
+            {sortedE.length===0&&<div style={{textAlign:"center",color:"#555",marginTop:60}}><div style={{fontSize:38,marginBottom:9}}>🧾</div>{T.noExp}</div>}
+            {sortedE.map(exp=>{
+              const cat=getCat(exp.category);
+              return (
+                <div key={exp.id} className="eRow" style={{display:"flex",alignItems:"center",gap:11,padding:"11px",borderRadius:15,marginBottom:7,background:CT.card,border:"1px solid rgba(255,255,255,.05)"}}>
+                  <div style={{width:41,height:41,borderRadius:12,background:cat.color+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{cat.icon}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:600}}>{exp.note||cat.label}</div>
+                    <div style={{fontSize:11,color:"#555",marginTop:2,display:"flex",gap:7}}>
+                      <span>{exp.date}</span><span style={{color:cat.color+"cc"}}>• {cat.label}</span>
+                    </div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:15,fontWeight:800,color:cat.color}}>−{M(exp.amount)}</div>
+                    <div style={{display:"flex",gap:5,marginTop:4,justifyContent:"flex-end"}}>
+                      <button className="tap" onClick={()=>openEdit(exp)} style={{background:"rgba(255,255,255,.08)",border:"none",borderRadius:7,padding:"3px 7px",fontSize:11,color:"#aaa",cursor:"pointer"}}>✏️</button>
+                      <button className="tap" onClick={()=>delExp(exp.id)} style={{background:"rgba(255,107,107,.12)",border:"none",borderRadius:7,padding:"3px 7px",fontSize:11,color:"#FF6B6B",cursor:"pointer"}}>🗑</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ANALYTICS */}
+        {page==="analytics"&&(
+          <div style={{padding:"17px 15px"}}>
+            <div style={{background:CT.card,borderRadius:19,padding:"21px",border:"1px solid rgba(255,255,255,.06)",marginBottom:17,textAlign:"center"}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#ccc",marginBottom:17}}>{T.dist}</div>
+              <svg width={148} height={148} viewBox="0 0 148 148">
+                {(()=>{let off=0;const r=53,cx=74,cy=74,ci=2*Math.PI*r;return byCat.map(cat=>{const pct=cat.total/totAll;const d=pct*ci;const el=<circle key={cat.id} cx={cx} cy={cy} r={r} fill="none" stroke={cat.color} strokeWidth={19} strokeDasharray={`${d} ${ci-d}`} strokeDashoffset={-off*ci+ci/4} style={{transform:"rotate(-90deg)",transformOrigin:"center"}}/>;off+=pct;return el;})})()}
+                <circle cx={74} cy={74} r={44} fill={CT.card}/>
+                <text x={74} y={70} textAnchor="middle" fill="#fff" fontSize={10} fontWeight={800} fontFamily="Outfit,sans-serif">{M(totAll)}</text>
+                <text x={74} y={85} textAnchor="middle" fill="#666" fontSize={9} fontFamily="Outfit,sans-serif">{lang==="ru"?"всего":"total"}</text>
+              </svg>
+              <div style={{display:"flex",flexWrap:"wrap",gap:7,justifyContent:"center",marginTop:13}}>
+                {byCat.map(cat=><div key={cat.id} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#aaa"}}><div style={{width:7,height:7,borderRadius:3,background:cat.color}}/>{cat.label}</div>)}
+              </div>
+            </div>
+            <div style={{background:CT.card,borderRadius:19,padding:"17px 15px",border:"1px solid rgba(255,255,255,.06)",marginBottom:17}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#ccc",marginBottom:13}}>{T.details}</div>
+              {byCat.length===0&&<div style={{color:"#555",fontSize:13}}>{T.noData}</div>}
+              {byCat.map(cat=>(
+                <div key={cat.id} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 7px",borderBottom:"1px solid rgba(255,255,255,.04)"}}>
+                  <div style={{width:37,height:37,borderRadius:11,background:cat.color+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:17}}>{cat.icon}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:600}}>{cat.label}</div>
+                    <div style={{fontSize:11,color:"#555",marginTop:1}}>{expenses.filter(e=>e.category===cat.id).length} {T.ops}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:14,fontWeight:800,color:cat.color}}>{M(cat.total)}</div>
+                    <div style={{fontSize:11,color:"#555"}}>{Math.round(cat.total/totAll*100)}%</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{background:CT.card,borderRadius:19,padding:"17px 15px",border:"1px solid rgba(255,255,255,.06)"}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#ccc",marginBottom:13}}>{T.byDays}</div>
+              {wkData.map((w,i)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",gap:11,marginBottom:8}}>
+                  <div style={{width:25,fontSize:12,color:w.isToday?"#FF6B6B":"#555",fontWeight:600}}>{w.day}</div>
+                  <div style={{flex:1,height:7,background:"rgba(255,255,255,.06)",borderRadius:4}}>
+                    <div style={{height:"100%",borderRadius:4,width:`${w.total/maxWk*100}%`,background:w.isToday?"linear-gradient(90deg,#FF6B6B,#FF8E53)":"rgba(195,166,255,.5)",transition:"width .6s"}}/>
+                  </div>
+                  <div style={{width:74,textAlign:"right",fontSize:12,fontWeight:600,color:w.isToday?"#FF6B6B":"#888"}}>{w.total>0?M(w.total):"—"}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* PIGGY */}
+        {page==="piggy"&&(
+          <div style={{padding:"17px 15px"}}>
+            {(()=>{const ts=goals.reduce((s,g)=>s+g.saved,0);const tt=goals.reduce((s,g)=>s+g.target,0);const dn=goals.filter(g=>g.saved>=g.target).length;return(
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11,marginBottom:17}}>
+                <div style={{background:"linear-gradient(135deg,#4ECDC4,#44A08D)",borderRadius:19,padding:"17px 15px",boxShadow:"0 8px 26px rgba(78,205,196,.3)"}}>
+                  <div style={{fontSize:10,fontWeight:600,opacity:.85,letterSpacing:.8,textTransform:"uppercase"}}>{T.totSaved}</div>
+                  <div style={{fontSize:22,fontWeight:800,marginTop:5,letterSpacing:-1}}>{M(ts)}</div>
+                  <div style={{fontSize:11,opacity:.75,marginTop:3}}>{lang==="ru"?`из ${M(tt)}`:`of ${M(tt)}`}</div>
+                </div>
+                <div style={{background:`linear-gradient(135deg,${CT.card},${CT.bg}cc)`,borderRadius:19,padding:"17px 15px",border:"1px solid rgba(255,255,255,.08)"}}>
+                  <div style={{fontSize:10,fontWeight:600,color:"#888",letterSpacing:.8,textTransform:"uppercase"}}>{T.totGoals}</div>
+                  <div style={{fontSize:32,fontWeight:800,marginTop:4,color:"#C3A6FF"}}>{goals.length}</div>
+                  <div style={{fontSize:11,color:"#888",marginTop:2}}>{dn>0?`✅ ${dn} ${lang==="ru"?"готово":"done"}`:`🎯 ${lang==="ru"?"в процессе":"in progress"}`}</div>
+                </div>
+              </div>
+            );})()}
+            <button className="tap" onClick={openAddGoal} style={{width:"100%",padding:"12px",border:"2px dashed rgba(78,205,196,.4)",borderRadius:15,background:"rgba(78,205,196,.06)",color:"#4ECDC4",fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:"pointer",marginBottom:13,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              <span style={{fontSize:17}}>+</span> {T.addG}
+            </button>
+            {goals.length===0&&<div style={{textAlign:"center",color:"#555",marginTop:50}}><div style={{fontSize:44,marginBottom:9}}>🐷</div>{T.noGoals}</div>}
+            {goals.map(g=>{const p=Math.min(g.saved/g.target,1);const done=g.saved>=g.target;return(
+              <div key={g.id} style={{background:CT.card,borderRadius:21,padding:"17px",border:`1.5px solid ${done?g.color+"55":"rgba(255,255,255,.05)"}`,marginBottom:13,position:"relative",overflow:"hidden"}}>
+                {done&&<div style={{position:"absolute",inset:0,background:g.color+"08",borderRadius:21}}/>}
+                <div style={{display:"flex",alignItems:"flex-start",gap:12,marginBottom:12,position:"relative"}}>
+                  <div style={{width:48,height:48,borderRadius:14,flexShrink:0,background:g.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,border:`2px solid ${g.color}44`}}>{g.icon}</div>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <div style={{fontSize:14,fontWeight:800}}>{g.name}</div>
+                      {done&&<span>🎉</span>}
+                    </div>
+                    <div style={{fontSize:12,color:"#666",marginTop:2}}>{M(g.saved)} / {M(g.target)}</div>
+                  </div>
+                  <div style={{display:"flex",gap:5}}>
+                    <button className="tap" onClick={()=>openEditGoal(g)} style={{background:"rgba(255,255,255,.07)",border:"none",borderRadius:8,width:27,height:27,fontSize:12,cursor:"pointer",color:"#aaa"}}>✏️</button>
+                    <button className="tap" onClick={()=>delGoal(g.id)} style={{background:"rgba(255,107,107,.1)",border:"none",borderRadius:8,width:27,height:27,fontSize:12,cursor:"pointer",color:"#FF6B6B"}}>🗑</button>
+                  </div>
+                </div>
+                <div style={{marginBottom:10}}>
+                  <div style={{height:8,background:"rgba(255,255,255,.06)",borderRadius:10}}>
+                    <div style={{height:"100%",borderRadius:10,width:`${p*100}%`,background:done?`linear-gradient(90deg,${g.color},${g.color}cc)`:`linear-gradient(90deg,${g.color}88,${g.color})`,transition:"width .6s",boxShadow:done?`0 0 11px ${g.color}66`:"none"}}/>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",marginTop:5}}>
+                    <div style={{fontSize:11,color:g.color,fontWeight:700}}>{Math.round(p*100)}% {T.comp}</div>
+                    {!done&&<div style={{fontSize:11,color:"#555"}}>{M(g.target-g.saved)} {T.rem}</div>}
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:7}}>
+                  <button className="tap" onClick={()=>{setShowDeposit(g.id);setDepositForm({amount:"",isWithdraw:false});}} style={{flex:1,padding:"9px",border:`1px solid ${g.color}44`,borderRadius:12,cursor:"pointer",background:`${g.color}22`,color:g.color,fontSize:12,fontWeight:700,fontFamily:"inherit"}}>+ {T.deposit}</button>
+                  <button className="tap" onClick={()=>{setShowDeposit(g.id);setDepositForm({amount:"",isWithdraw:true});}} style={{flex:1,padding:"9px",border:"1px solid rgba(255,255,255,.08)",borderRadius:12,cursor:"pointer",background:"rgba(255,255,255,.04)",color:"#888",fontSize:12,fontWeight:700,fontFamily:"inherit"}}>− {T.withdraw}</button>
+                </div>
+              </div>
+            );})}
+          </div>
+        )}
+
+        {/* SETTINGS */}
+        {page==="settings"&&(
+          <div style={{padding:"17px 15px"}}>
+
+            {/* Account card */}
+            <div style={{background:`linear-gradient(135deg,${av}22,${av}08)`,borderRadius:21,padding:"19px",border:`1.5px solid ${av}33`,marginBottom:21,display:"flex",alignItems:"center",gap:15}}>
+              <div style={{width:60,height:60,borderRadius:18,background:av,display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,fontWeight:800,color:"#fff",boxShadow:`0 6px 20px ${av}55`,flexShrink:0}}>{getInitials(userName)}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:16,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{userName}</div>
+                <div style={{fontSize:12,color:"#666",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{userKey}</div>
+                <div style={{fontSize:11,color:av,marginTop:5,fontWeight:600}}>● {T.myAcc}</div>
+              </div>
+              <button className="tap" onClick={()=>{setProfForm({name:userData.name||""});setShowProfile(true);}} style={{background:"rgba(255,255,255,.08)",border:"none",borderRadius:11,padding:"8px 11px",fontSize:12,color:"#aaa",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>✏️</button>
+            </div>
+
+            {/* Language */}
+            <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:7,paddingLeft:3}}>{T.lang}</div>
+            <div style={{background:CT.card,borderRadius:17,padding:"5px 15px",border:"1px solid rgba(255,255,255,.06)",marginBottom:17}}>
+              {[{id:"ru",label:"Русский",flag:"🇷🇺"},{id:"en",label:"English",flag:"🇺🇸"}].map(l=>(
+                <div key={l.id} className="sr tap" onClick={()=>setLang(l.id)}>
+                  <div style={{fontSize:19,marginRight:11}}>{l.flag}</div>
+                  <div style={{flex:1,fontSize:14,fontWeight:500}}>{l.label}</div>
+                  <div style={{width:19,height:19,borderRadius:"50%",border:`2px solid ${lang===l.id?"#FF6B6B":"rgba(255,255,255,.15)"}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    {lang===l.id&&<div style={{width:9,height:9,borderRadius:"50%",background:"#FF6B6B"}}/>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Currency */}
+            <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:7,paddingLeft:3}}>{T.cur}</div>
+            <div style={{background:CT.card,borderRadius:17,padding:"5px 15px",border:"1px solid rgba(255,255,255,.06)",marginBottom:17}}>
+              {CURRENCIES.map(c=>(
+                <div key={c.id} className="sr tap" onClick={()=>{setCurrency(c.id);showT(T.savedM);}}>
+                  <div style={{fontSize:19,marginRight:11}}>{c.flag}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:500}}>{c.label}</div>
+                    <div style={{fontSize:11,color:"#555",marginTop:1}}>{c.id} · {c.symbol}</div>
+                  </div>
+                  <div style={{width:19,height:19,borderRadius:"50%",border:`2px solid ${currency===c.id?"#FF6B6B":"rgba(255,255,255,.15)"}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    {currency===c.id&&<div style={{width:9,height:9,borderRadius:"50%",background:"#FF6B6B"}}/>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Theme */}
+            <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:7,paddingLeft:3}}>{T.themeL}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:17}}>
+              {THEMES.map(th=>(
+                <div key={th.id} className="tap" onClick={()=>{setTheme(th.id);showT(T.savedM);}} style={{borderRadius:15,overflow:"hidden",cursor:"pointer",border:`2px solid ${theme===th.id?"#FF6B6B":"transparent"}`}}>
+                  <div style={{background:th.bg,height:48,position:"relative",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    <div style={{width:32,height:17,borderRadius:5,background:th.card,border:"1px solid rgba(255,255,255,.1)"}}/>
+                    {theme===th.id&&<div style={{position:"absolute",top:4,right:4,width:13,height:13,borderRadius:"50%",background:"#FF6B6B",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,color:"#fff"}}>✓</div>}
+                  </div>
+                  <div style={{background:CT.card,padding:"5px 5px",textAlign:"center",fontSize:10,fontWeight:600,color:theme===th.id?"#FF6B6B":"#888"}}>{lang==="ru"?th.label:th.labelEn}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Budget */}
+            <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:7,paddingLeft:3}}>{T.budget}</div>
+            <div style={{background:CT.card,borderRadius:17,padding:"14px",border:"1px solid rgba(255,255,255,.06)",marginBottom:17,overflow:"hidden"}}>
+              <div style={{fontSize:12,color:"#666",marginBottom:8}}>{T.budgetH}</div>
+              <div style={{display:"flex",alignItems:"center",gap:9,width:"100%",minWidth:0}}>
+                <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",background:"rgba(255,255,255,.05)",borderRadius:11,padding:"8px 12px",border:"1.5px solid rgba(255,255,255,.08)"}}>
+                  <input type="number" value={dailyBudget} onChange={e=>setDailyBudget(e.target.value)} onBlur={()=>showT(T.savedM)} placeholder="0"
+                    style={{flex:1,minWidth:0,width:"100%",fontSize:21,fontWeight:800,color:"#C3A6FF"}}/>
+                  <div style={{fontSize:15,color:"#666",fontWeight:700,marginLeft:6,flexShrink:0}}>{CSym}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Notifications */}
+            <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:7,paddingLeft:3}}>{T.notifL}</div>
+            <div style={{background:CT.card,borderRadius:17,padding:"5px 15px",border:"1px solid rgba(255,255,255,.06)",marginBottom:17}}>
+              <div className="sr">
+                <div style={{fontSize:18,marginRight:11}}>🔔</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:14,fontWeight:500}}>{T.notifL}</div>
+                  <div style={{fontSize:11,color:"#555",marginTop:2}}>{T.notifH}</div>
+                </div>
+                <label className="tog">
+                  <input type="checkbox" checked={notifications} onChange={e=>{setNotifs(e.target.checked);showT(T.savedM);}}/>
+                  <span className="slid"/>
+                </label>
+              </div>
+            </div>
+
+            {/* Data */}
+            <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:7,paddingLeft:3}}>{T.dataL}</div>
+            <div style={{background:CT.card,borderRadius:17,padding:"5px 15px",border:"1px solid rgba(255,255,255,.06)",marginBottom:17}}>
+              <div className="sr tap" onClick={()=>setShowClear(true)}>
+                <div style={{fontSize:18,marginRight:11}}>🗑️</div>
+                <div style={{flex:1,fontSize:14,fontWeight:500,color:"#FF6B6B"}}>{T.clearD}</div>
+                <div style={{color:"#555",fontSize:15}}>›</div>
+              </div>
+            </div>
+
+            {/* Logout */}
+            <button className="tap" onClick={()=>setShowLogout(true)} style={{width:"100%",padding:"14px",border:"1.5px solid rgba(255,107,107,.3)",borderRadius:17,cursor:"pointer",background:"rgba(255,107,107,.08)",color:"#FF6B6B",fontSize:14,fontWeight:700,fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:17}}>
+              🚪 {T.logout}
+            </button>
+
+            {/* About */}
+            <div style={{background:CT.card,borderRadius:17,padding:"18px",border:"1px solid rgba(255,255,255,.06)",textAlign:"center",marginBottom:20}}>
+              <div style={{width:64,height:64,borderRadius:18,overflow:"hidden",margin:"0 auto 10px"}}>
+                <img src="data:image/png;base64,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vnTDJed1d7Rros99547+ofE/v/lt1118wVM7X31h1759Y5n9Rw6nE7HF83o2rFi+ZsmiZCLuKHXHg4/kQOzZ13/a6mUff+87l61YvH9odO/r+49mJt+xbeueI4NXfuyzmWzhxusuv+3PbjnttPW7B0eeenpnKhW7cMvGp3a9/vj+QyVXtcfErR/7wJbN6/YOjx0dGh/LTr9920Xtifjhqenh4bGz1q/60M1vu+zcMzcsX+pJnGMYNmEkvH4yEIGYTSOq+tlfzTaCeXqECdI6HU8s713Qv/fQRL54ZGLiwWd38kTs9g/+yUfefj0AfOidb73sz//66Vf3MAQCuvK8sxct6BnoP/Kzhx//zHtueu1A/+MvvWa2JG68bCsA/M0H3tU/OPybF167485777j3N6uXLHzbRW/6xLve0dXWhkQIKAuFC05b+9B3vho3TQBY1bfg09/6918++/JENvuL3zyRH5m88oqLf3L7X3sP2jOn80N/87UfP/Cb//Xem4QQ0nbmtqbu//aXl/f2AkA6lbj12z94+cDh6ULhluuuenrvwZ0vvLZ5xeK/fv/NgXBHrE5E9xPrqS6/C5snwDBCL1J3vJA2EWjCZpqxbgu8u0ipkChmGHsHBp1iubuj9R3bL1Faly07FYvduP1CqFS8ns7tqdTbt54Hmv7zoScB4N7fPlMen7zkjE2bV68kot653b/67lfu+/ptH775rWsW9+3tP/Klf/7JWz5xW6Fc9u0Hy77xikviplm2LKX1jVdtmzOns1Qsv3JgYNehQUyldh8ePvPmD2+88X+cftOHvvajn7uM7z4yPF0qmoKDZS/tnbest9dxXaX0eZvWa87LrqzYrlK6VLGAc9txpVKO4xJQTf4R1da4hahnk67yWqISUO3PjcdISqozxqmasODPC1dKSQKldcwwhiczv+s/QqaxfkmfB7Oh367Wf07DMMCf344A9O5rL/vOzx947eCR+5/Z8evndgLn7712OwK4SjLGgMHVF59/9cXn54ulf7n7l5+/42fP7Nz94DPPv/3Si5XW/jRQCkZ+ab+0QGntBT9iptHSko67ihjMS6c3rV7OSJuMaU1ee2JNxBnjnBGR1xYaATj3/RSKAJr1dT2BYxPWrlCzZCXtt5EIC1SOa+RTkH5Q09yfAIgxljBMz04qVip/+X/+39hkpntu59YzN49NZszW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" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"inherit"}}/>
+              </div>
+              <div style={{fontSize:15,fontWeight:800,letterSpacing:-.5}}>DaySpent</div>
+              <div style={{fontSize:12,color:"#555",marginTop:3}}>{T.ver}</div>
+              <div style={{fontSize:11,color:"#444",marginTop:5}}>{T.made}</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* BOTTOM NAV */}
+      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(12,12,18,.97)",backdropFilter:"blur(20px)",borderTop:"1px solid rgba(255,255,255,.07)",display:"flex",padding:"8px 0 21px"}}>
+        {[
+          {id:"dashboard",label:T.dashboard,icon:"⊞"},
+          {id:"expenses", label:T.expenses, icon:"≡"},
+          {id:"analytics",label:T.analytics,icon:"◎"},
+          {id:"piggy",    label:T.piggy,    icon:"🐷"},
+          {id:"settings", label:T.settings, icon:"⚙"},
+        ].map(tab=>(
+          <div key={tab.id} className="nav tap" onClick={()=>setPage(tab.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,opacity:page===tab.id?1:.36}}>
+            <div style={{width:41,height:29,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",background:page===tab.id?"rgba(255,107,107,.15)":"transparent",fontSize:16,transition:"all .2s"}}>{tab.icon}</div>
+            <div style={{fontSize:10,fontWeight:page===tab.id?700:400,color:page===tab.id?"#FF6B6B":"inherit"}}>{tab.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* EXPENSE MODAL */}
+      {showModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(6px)"}} onClick={e=>e.target===e.currentTarget&&setShowModal(false)}>
+          <div className="mEnter" style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#1E1E2E",borderRadius:"23px 23px 0 0",padding:"21px 19px 36px",border:"1px solid rgba(255,255,255,.1)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:19}}>
+              <div style={{fontSize:16,fontWeight:800}}>{editId?T.editE:T.newE}</div>
+              <button onClick={()=>setShowModal(false)} style={{background:"rgba(255,255,255,.08)",border:"none",borderRadius:9,width:29,height:29,cursor:"pointer",color:"#fff",fontSize:15}}>×</button>
+            </div>
+            <div style={{background:"rgba(255,255,255,.05)",borderRadius:14,padding:"13px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.08)"}}>
+              <div style={{fontSize:10,color:"#666",marginBottom:4,fontWeight:700,letterSpacing:.8}}>{T.amL}</div>
+              <div style={{display:"flex",alignItems:"center",gap:7}}>
+                <input type="number" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} placeholder="0" style={{flex:1,fontSize:27,fontWeight:800,color:"#FF6B6B",letterSpacing:-1}}/>
+                <span style={{fontSize:19,color:"#555"}}>{CSym}</span>
+              </div>
+            </div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:10,color:"#666",marginBottom:6,fontWeight:700,letterSpacing:.8}}>{T.catL}</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                {CATEGORIES.map(cat=>(
+                  <div key={cat.id} className="tap" onClick={()=>setForm(f=>({...f,category:cat.id}))} style={{padding:"8px 5px",borderRadius:12,textAlign:"center",cursor:"pointer",background:form.category===cat.id?cat.color+"30":"rgba(255,255,255,.04)",border:`1.5px solid ${form.category===cat.id?cat.color:"transparent"}`}}>
+                    <div style={{fontSize:18}}>{cat.icon}</div>
+                    <div style={{fontSize:9,color:form.category===cat.id?cat.color:"#666",marginTop:2,fontWeight:600}}>{cat.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{background:"rgba(255,255,255,.05)",borderRadius:14,padding:"12px 14px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.08)"}}>
+              <div style={{fontSize:10,color:"#666",marginBottom:4,fontWeight:700,letterSpacing:.8}}>{T.noteL}</div>
+              <input type="text" value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder={T.notePh} style={{width:"100%",fontSize:14,color:"#fff"}}/>
+            </div>
+            <div style={{background:"rgba(255,255,255,.05)",borderRadius:14,padding:"12px 14px",marginBottom:17,border:"1.5px solid rgba(255,255,255,.08)"}}>
+              <div style={{fontSize:10,color:"#666",marginBottom:4,fontWeight:700,letterSpacing:.8}}>{T.dateL}</div>
+              <input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={{width:"100%",fontSize:14,color:"#fff",colorScheme:"dark"}}/>
+            </div>
+            <button className="tap" onClick={saveExp} style={{width:"100%",padding:"14px",border:"none",borderRadius:14,cursor:"pointer",background:form.amount&&+form.amount>0?"linear-gradient(135deg,#FF6B6B,#FF8E53)":"rgba(255,255,255,.08)",color:form.amount&&+form.amount>0?"#fff":"#555",fontSize:15,fontWeight:800,fontFamily:"inherit"}}>
+              {editId?T.saveC:T.addE}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* GOAL MODAL */}
+      {showGoalModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(6px)"}} onClick={e=>e.target===e.currentTarget&&setShowGoalModal(false)}>
+          <div className="mEnter" style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#1E1E2E",borderRadius:"23px 23px 0 0",padding:"21px 19px 36px",border:"1px solid rgba(255,255,255,.1)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:17}}>
+              <div style={{fontSize:16,fontWeight:800}}>{editGoalId?T.editG:T.addG}</div>
+              <button onClick={()=>setShowGoalModal(false)} style={{background:"rgba(255,255,255,.08)",border:"none",borderRadius:9,width:29,height:29,cursor:"pointer",color:"#fff",fontSize:15}}>×</button>
+            </div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:10,color:"#666",marginBottom:6,fontWeight:700,letterSpacing:.8}}>ИКОНКА</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {GOAL_ICONS.map(ic=>(
+                  <div key={ic} className="tap" onClick={()=>setGoalForm(f=>({...f,icon:ic}))} style={{width:37,height:37,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,cursor:"pointer",background:goalForm.icon===ic?goalForm.color+"33":"rgba(255,255,255,.05)",border:`2px solid ${goalForm.icon===ic?goalForm.color:"transparent"}`}}>{ic}</div>
+                ))}
+              </div>
+            </div>
+            <div style={{background:"rgba(255,255,255,.05)",borderRadius:13,padding:"11px 14px",marginBottom:9,border:"1.5px solid rgba(255,255,255,.08)"}}>
+              <div style={{fontSize:10,color:"#666",marginBottom:3,fontWeight:700,letterSpacing:.8}}>НАЗВАНИЕ</div>
+              <input value={goalForm.name} onChange={e=>setGoalForm(f=>({...f,name:e.target.value}))} placeholder={lang==="ru"?"Моя цель...":"My goal..."} style={{width:"100%",fontSize:14,color:"#fff"}}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:11}}>
+              <div style={{background:"rgba(255,255,255,.05)",borderRadius:13,padding:"11px 12px",border:"1.5px solid rgba(255,255,255,.08)"}}>
+                <div style={{fontSize:10,color:"#666",marginBottom:3,fontWeight:700,letterSpacing:.8}}>{T.gTarget}</div>
+                <input type="number" value={goalForm.target} onChange={e=>setGoalForm(f=>({...f,target:e.target.value}))} placeholder="0" style={{width:"100%",fontSize:16,fontWeight:800,color:"#4ECDC4"}}/>
+              </div>
+              <div style={{background:"rgba(255,255,255,.05)",borderRadius:13,padding:"11px 12px",border:"1.5px solid rgba(255,255,255,.08)"}}>
+                <div style={{fontSize:10,color:"#666",marginBottom:3,fontWeight:700,letterSpacing:.8}}>{T.gSaved}</div>
+                <input type="number" value={goalForm.saved} onChange={e=>setGoalForm(f=>({...f,saved:e.target.value}))} placeholder="0" style={{width:"100%",fontSize:16,fontWeight:800,color:"#C3A6FF"}}/>
+              </div>
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:10,color:"#666",marginBottom:6,fontWeight:700,letterSpacing:.8}}>{T.gColor}</div>
+              <div style={{display:"flex",gap:8}}>
+                {GOAL_COLORS.map(c=><div key={c} className="tap" onClick={()=>setGoalForm(f=>({...f,color:c}))} style={{width:27,height:27,borderRadius:8,background:c,cursor:"pointer",border:`3px solid ${goalForm.color===c?"#fff":"transparent"}`,boxShadow:goalForm.color===c?`0 0 9px ${c}88`:"none"}}/>)}
+              </div>
+            </div>
+            <button className="tap" onClick={saveGoal} style={{width:"100%",padding:"13px",border:"none",borderRadius:14,cursor:"pointer",background:goalForm.name&&+goalForm.target>0?`linear-gradient(135deg,${goalForm.color},${goalForm.color}aa)`:"rgba(255,255,255,.08)",color:"#fff",fontSize:15,fontWeight:800,fontFamily:"inherit"}}>{editGoalId?T.saveG:T.createG}</button>
+          </div>
+        </div>
+      )}
+
+      {/* DEPOSIT MODAL */}
+      {showDeposit!==null&&(()=>{const g=goals.find(g=>g.id===showDeposit);if(!g)return null;return(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:150,padding:20}} onClick={e=>e.target===e.currentTarget&&setShowDeposit(null)}>
+          <div className="mEnter" style={{background:CT.card,borderRadius:23,padding:"24px 21px",border:"1px solid rgba(255,255,255,.1)",maxWidth:320,width:"100%"}}>
+            <div style={{textAlign:"center",marginBottom:17}}>
+              <div style={{fontSize:33,marginBottom:4}}>{g.icon}</div>
+              <div style={{fontSize:15,fontWeight:800}}>{g.name}</div>
+            </div>
+            <div style={{display:"flex",background:"rgba(255,255,255,.06)",borderRadius:12,padding:4,marginBottom:14}}>
+              {[false,true].map(isW=>(
+                <div key={String(isW)} className="tap" onClick={()=>setDepositForm(f=>({...f,isWithdraw:isW}))} style={{flex:1,padding:"8px",borderRadius:9,textAlign:"center",cursor:"pointer",background:depositForm.isWithdraw===isW?(isW?"rgba(255,107,107,.2)":g.color+"33"):"transparent",color:depositForm.isWithdraw===isW?(isW?"#FF6B6B":g.color):"#666",fontWeight:700,fontSize:12,transition:"all .2s"}}>
+                  {isW?`− ${T.withdraw}`:`+ ${T.deposit}`}
+                </div>
+              ))}
+            </div>
+            <div style={{background:"rgba(255,255,255,.05)",borderRadius:14,padding:"13px",marginBottom:15,border:`1.5px solid ${depositForm.isWithdraw?"#FF6B6B44":g.color+"44"}`}}>
+              <div style={{fontSize:10,color:"#666",marginBottom:4,fontWeight:700,letterSpacing:.8}}>{T.amL}</div>
+              <div style={{display:"flex",alignItems:"center",gap:7}}>
+                <input type="number" value={depositForm.amount} onChange={e=>setDepositForm(f=>({...f,amount:e.target.value}))} placeholder="0" style={{flex:1,fontSize:25,fontWeight:800,color:depositForm.isWithdraw?"#FF6B6B":g.color}}/>
+                <span style={{fontSize:17,color:"#555"}}>{CSym}</span>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button className="tap" onClick={()=>setShowDeposit(null)} style={{flex:1,padding:"11px",background:"rgba(255,255,255,.07)",border:"none",borderRadius:12,color:"#fff",fontSize:13,fontWeight:600,fontFamily:"inherit",cursor:"pointer"}}>{T.cancel}</button>
+              <button className="tap" onClick={doDeposit} style={{flex:2,padding:"11px",border:"none",borderRadius:12,cursor:"pointer",background:depositForm.isWithdraw?"linear-gradient(135deg,#FF6B6B,#FF4444)":`linear-gradient(135deg,${g.color},${g.color}aa)`,color:"#fff",fontSize:13,fontWeight:800,fontFamily:"inherit"}}>
+                {depositForm.isWithdraw?`− ${T.withdraw}`:`+ ${T.deposit}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      );})()}
+
+      {/* PROFILE MODAL */}
+      {showProfile&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:160,padding:20}} onClick={e=>e.target===e.currentTarget&&setShowProfile(false)}>
+          <div className="mEnter" style={{background:CT.card,borderRadius:23,padding:"24px 21px",border:"1px solid rgba(255,255,255,.1)",maxWidth:330,width:"100%"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <div style={{fontSize:15,fontWeight:800}}>{T.editProf}</div>
+              <button onClick={()=>setShowProfile(false)} style={{background:"rgba(255,255,255,.08)",border:"none",borderRadius:9,width:29,height:29,cursor:"pointer",color:"#fff",fontSize:15}}>×</button>
+            </div>
+            <div style={{display:"flex",justifyContent:"center",marginBottom:17}}>
+              <div style={{width:62,height:62,borderRadius:19,background:getAvatarColor(profForm.name||userKey),display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,fontWeight:800,color:"#fff",boxShadow:`0 6px 18px ${getAvatarColor(profForm.name||userKey)}55`}}>{getInitials(profForm.name||userKey)}</div>
+            </div>
+            <div style={{background:"rgba(255,255,255,.05)",borderRadius:13,padding:"12px 14px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.08)"}}>
+              <div style={{fontSize:10,color:"#666",marginBottom:3,fontWeight:700,letterSpacing:.8}}>{T.nameL}</div>
+              <input value={profForm.name} onChange={e=>setProfForm(f=>({...f,name:e.target.value}))} placeholder="Ваше имя" style={{width:"100%",fontSize:15,color:"#fff"}}/>
+            </div>
+            <div style={{background:"rgba(255,255,255,.04)",borderRadius:13,padding:"12px 14px",marginBottom:17,border:"1.5px solid rgba(255,255,255,.05)"}}>
+              <div style={{fontSize:10,color:"#555",marginBottom:3,fontWeight:700,letterSpacing:.8}}>{T.emailL}</div>
+              <div style={{fontSize:14,color:"#555"}}>{userKey}</div>
+            </div>
+            <button className="tap" onClick={saveProfile} style={{width:"100%",padding:"13px",border:"none",borderRadius:13,cursor:"pointer",background:"linear-gradient(135deg,#FF6B6B,#FF8E53)",color:"#fff",fontSize:14,fontWeight:800,fontFamily:"inherit"}}>{T.saveProf}</button>
+          </div>
+        </div>
+      )}
+
+      {/* LOGOUT CONFIRM */}
+      {showLogout&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:170,padding:20}} onClick={e=>e.target===e.currentTarget&&setShowLogout(false)}>
+          <div className="mEnter" style={{background:CT.card,borderRadius:23,padding:"26px 21px",border:"1px solid rgba(255,255,255,.1)",maxWidth:310,width:"100%",textAlign:"center"}}>
+            <div style={{fontSize:36,marginBottom:11}}>🚪</div>
+            <div style={{fontSize:15,fontWeight:800,marginBottom:7}}>{T.logout}</div>
+            <div style={{fontSize:13,color:"#888",marginBottom:21}}>{T.logoutQ}</div>
+            <div style={{display:"flex",gap:9}}>
+              <button className="tap" onClick={()=>setShowLogout(false)} style={{flex:1,padding:"11px",background:"rgba(255,255,255,.08)",border:"none",borderRadius:12,color:"#fff",fontSize:13,fontWeight:600,fontFamily:"inherit",cursor:"pointer"}}>{T.cancel}</button>
+              <button className="tap" onClick={()=>{setShowLogout(false);onLogout();}} style={{flex:1,padding:"11px",background:"linear-gradient(135deg,#FF6B6B,#FF4444)",border:"none",borderRadius:12,color:"#fff",fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{T.logoutY}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CLEAR CONFIRM */}
+      {showClear&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:170,padding:20}} onClick={e=>e.target===e.currentTarget&&setShowClear(false)}>
+          <div className="mEnter" style={{background:CT.card,borderRadius:23,padding:"26px 21px",border:"1px solid rgba(255,255,255,.1)",maxWidth:310,width:"100%",textAlign:"center"}}>
+            <div style={{fontSize:36,marginBottom:11}}>⚠️</div>
+            <div style={{fontSize:15,fontWeight:800,marginBottom:7}}>{T.clearD}</div>
+            <div style={{fontSize:13,color:"#888",marginBottom:21}}>{T.clearQ}</div>
+            <div style={{display:"flex",gap:9}}>
+              <button className="tap" onClick={()=>setShowClear(false)} style={{flex:1,padding:"11px",background:"rgba(255,255,255,.08)",border:"none",borderRadius:12,color:"#fff",fontSize:13,fontWeight:600,fontFamily:"inherit",cursor:"pointer"}}>{T.cancel}</button>
+              <button className="tap" onClick={()=>{setExpenses([]);setShowClear(false);showT(T.deleted,"error");}} style={{flex:1,padding:"11px",background:"linear-gradient(135deg,#FF6B6B,#FF4444)",border:"none",borderRadius:12,color:"#fff",fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"}}>{T.yes}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TOAST */}
+      {toast&&(
+        <div className="tAnim" style={{position:"fixed",top:56,right:13,zIndex:300,background:toast.type==="error"?"#FF6B6B":"#4ECDC4",color:"#fff",padding:"8px 15px",borderRadius:12,fontSize:13,fontWeight:700,boxShadow:"0 8px 22px rgba(0,0,0,.3)"}}>
+          {toast.msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App/>);
+  </script>
+</body>
+</html>
