@@ -7,6 +7,8 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     html,body{width:100%;height:100%;overflow-x:hidden;background:#0F0F13}
@@ -19,36 +21,43 @@
     const { useState, useRef, useEffect } = React;
 
 // ══════════════════════════════════════
-//  SUPABASE CONFIG — вставь свои ключи
+//  FIREBASE CONFIG — вставь свои ключи
+//  console.firebase.google.com → твой проект → Project Settings → Your apps
 // ══════════════════════════════════════
-const SB_URL = "https://ТВОЙ_ПРОЕКТ.supabase.co";
-const SB_KEY = "ТВОЙ_ANON_KEY";
-const SB_H   = { "Content-Type":"application/json", "apikey":SB_KEY, "Authorization":"Bearer "+SB_KEY, "Prefer":"return=representation" };
+const firebaseConfig = {
+  apiKey:            "ТВОЙ_API_KEY",
+  authDomain:        "ТВОЙ_ПРОЕКТ.firebaseapp.com",
+  projectId:         "ТВОЙ_ПРОЕКТ",
+  storageBucket:     "ТВОЙ_ПРОЕКТ.appspot.com",
+  messagingSenderId: "ТВОЙ_SENDER_ID",
+  appId:             "ТВОЙ_APP_ID"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const USERS = db.collection("users");
+// ══════════════════════════════════════
 
 async function sbGetUser(email) {
   try {
-    const r = await fetch(`${SB_URL}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=*`, {headers:SB_H});
-    const d = await r.json();
-    return d[0] || null;
+    const snap = await USERS.doc(email.toLowerCase().trim()).get();
+    return snap.exists ? snap.data() : null;
   } catch { return null; }
 }
 
 async function sbCreateUser(email, password, name) {
-  const r = await fetch(`${SB_URL}/rest/v1/users`, {
-    method:"POST", headers:SB_H,
-    body:JSON.stringify({email, password, name, expenses:[], goals:[],
-      settings:{lang:"ru",currency:"RUB",theme:"dark",dailyBudget:"",notifications:true}})
-  });
-  if (!r.ok) { const e=await r.json(); throw new Error(e.message||"Ошибка регистрации"); }
-  const d = await r.json();
-  return d[0] || null;
+  const key = email.toLowerCase().trim();
+  const acc = { email:key, password, name,
+    expenses:[], goals:[],
+    settings:{lang:"ru",currency:"RUB",theme:"dark",dailyBudget:"",notifications:true},
+    createdAt: new Date().toISOString()
+  };
+  await USERS.doc(key).set(acc);
+  return acc;
 }
 
 async function sbSaveUser(email, data) {
   try {
-    await fetch(`${SB_URL}/rest/v1/users?email=eq.${encodeURIComponent(email)}`, {
-      method:"PATCH", headers:SB_H, body:JSON.stringify(data)
-    });
+    await USERS.doc(email.toLowerCase().trim()).update(data);
   } catch {}
 }
 // ══════════════════════════════════════
