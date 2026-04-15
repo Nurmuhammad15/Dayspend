@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <title>DaySpent</title>
+  <title>DaySpent - Управление финансами</title>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
-    body{background:#0F0F13;font-family:'Segoe UI',sans-serif}
-    .tap{cursor:pointer;transition:transform 0.1s}
-    .tap:active{transform:scale(0.95)}
+    body{background:#0F0F13;font-family:'Segoe UI',-apple-system,sans-serif}
+    .tap{cursor:pointer;transition:transform 0.1s,opacity 0.1s}
+    .tap:active{transform:scale(0.96);opacity:0.8}
   </style>
 </head>
 <body>
@@ -21,13 +21,13 @@
 
     // Константы
     const CATEGORIES = [
-      { id:"food", label:"🍽️ Еда", color:"#FF6B6B" },
-      { id:"transport", label:"🚇 Транспорт", color:"#4ECDC4" },
-      { id:"shopping", label:"🛍️ Покупки", color:"#FFE66D" },
-      { id:"health", label:"💊 Здоровье", color:"#A8E6CF" },
-      { id:"entertainment", label:"🎬 Развлечения", color:"#C3A6FF" },
-      { id:"utilities", label:"💡 Коммунальные", color:"#FFB347" },
-      { id:"other", label:"📦 Другое", color:"#B0B0B0" },
+      { id:"food", label:"Еда", icon:"🍽️", color:"#FF6B6B" },
+      { id:"transport", label:"Транспорт", icon:"🚇", color:"#4ECDC4" },
+      { id:"shopping", label:"Покупки", icon:"🛍️", color:"#FFE66D" },
+      { id:"health", label:"Здоровье", icon:"💊", color:"#A8E6CF" },
+      { id:"entertainment", label:"Развлечения", icon:"🎬", color:"#C3A6FF" },
+      { id:"utilities", label:"Коммунальные", icon:"💡", color:"#FFB347" },
+      { id:"other", label:"Другое", icon:"📦", color:"#B0B0B0" },
     ];
 
     const CURRENCIES = [
@@ -36,22 +36,7 @@
       { id:"EUR", symbol:"€", label:"Евро", flag:"🇪🇺" },
     ];
 
-    // Вспомогательные функции
-    function todayStr() {
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-    }
-
-    function fmtMoney(amount, currency) {
-      const cur = CURRENCIES.find(c => c.id === currency) || CURRENCIES[0];
-      return Math.round(amount) + " " + cur.symbol;
-    }
-
-    function getInitials(name) {
-      return name ? name.substring(0,2).toUpperCase() : "U";
-    }
-
-    // Работа с localStorage
+    // Функции для работы с localStorage
     function getUsers() {
       const users = localStorage.getItem("dayspent_users");
       return users ? JSON.parse(users) : {};
@@ -74,7 +59,7 @@
       users[key] = {
         email: key,
         password: password,
-        name: name,
+        name: name.trim(),
         expenses: [],
         goals: [],
         settings: {
@@ -98,6 +83,20 @@
       }
     }
 
+    function todayStr() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    }
+
+    function fmtMoney(amount, currency) {
+      const cur = CURRENCIES.find(c => c.id === currency) || CURRENCIES[0];
+      return Math.round(amount) + " " + cur.symbol;
+    }
+
+    function getInitials(name) {
+      return name ? name.substring(0, 2).toUpperCase() : "U";
+    }
+
     // Компонент входа
     function AuthScreen({ onLogin }) {
       const [isLogin, setIsLogin] = useState(true);
@@ -108,7 +107,7 @@
       const [error, setError] = useState("");
       const [loading, setLoading] = useState(false);
 
-      const handleSubmit = async (e) => {
+      const handleSubmit = (e) => {
         e.preventDefault();
         setError("");
         setLoading(true);
@@ -155,10 +154,10 @@
 
       return (
         <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0F0F13", padding: "20px" }}>
-          <div style={{ background: "#1A1A24", borderRadius: "24px", padding: "32px", width: "100%", maxWidth: "400px" }}>
+          <div style={{ background: "#1A1A24", borderRadius: "24px", padding: "32px", width: "100%", maxWidth: "400px", border: "1px solid rgba(255,255,255,0.1)" }}>
             <div style={{ textAlign: "center", marginBottom: "32px" }}>
-              <div style={{ fontSize: "48px", marginBottom: "8px" }}>💸</div>
-              <h1 style={{ color: "#fff", fontSize: "28px" }}>DaySpent</h1>
+              <div style={{ fontSize: "48px", marginBottom: "8px" }}>💰</div>
+              <h1 style={{ color: "#fff", fontSize: "28px", fontWeight: "bold" }}>DaySpent</h1>
               <p style={{ color: "#888", marginTop: "8px" }}>Управляй своими финансами</p>
             </div>
 
@@ -166,10 +165,10 @@
               {!isLogin && (
                 <input
                   type="text"
-                  placeholder="Имя"
+                  placeholder="Ваше имя"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  style={{ width: "100%", padding: "12px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px" }}
+                  style={{ width: "100%", padding: "14px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px", outline: "none" }}
                 />
               )}
               <input
@@ -177,14 +176,14 @@
                 placeholder="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                style={{ width: "100%", padding: "12px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px" }}
+                style={{ width: "100%", padding: "14px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px", outline: "none" }}
               />
               <input
                 type="password"
                 placeholder="Пароль"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                style={{ width: "100%", padding: "12px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px" }}
+                style={{ width: "100%", padding: "14px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px", outline: "none" }}
               />
               {!isLogin && (
                 <input
@@ -192,12 +191,12 @@
                   placeholder="Подтвердите пароль"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  style={{ width: "100%", padding: "12px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px" }}
+                  style={{ width: "100%", padding: "14px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px", outline: "none" }}
                 />
               )}
               
               {error && (
-                <div style={{ background: "rgba(255,107,107,0.1)", color: "#FF6B6B", padding: "12px", borderRadius: "12px", marginBottom: "12px", fontSize: "14px" }}>
+                <div style={{ background: "rgba(255,107,107,0.15)", color: "#FF6B6B", padding: "12px", borderRadius: "12px", marginBottom: "12px", fontSize: "14px", border: "1px solid rgba(255,107,107,0.3)" }}>
                   ⚠️ {error}
                 </div>
               )}
@@ -205,7 +204,7 @@
               <button
                 type="submit"
                 disabled={loading}
-                style={{ width: "100%", padding: "14px", background: "linear-gradient(135deg,#FF6B6B,#FF8E53)", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px", fontWeight: "bold", cursor: "pointer", opacity: loading ? 0.7 : 1 }}
+                style={{ width: "100%", padding: "14px", background: "linear-gradient(135deg,#FF6B6B,#FF8E53)", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px", fontWeight: "bold", cursor: "pointer", opacity: loading ? 0.7 : 1, transition: "opacity 0.2s" }}
               >
                 {loading ? "Загрузка..." : (isLogin ? "Войти" : "Зарегистрироваться")}
               </button>
@@ -216,7 +215,7 @@
                 onClick={() => { setIsLogin(!isLogin); setError(""); }}
                 style={{ background: "none", border: "none", color: "#FF6B6B", cursor: "pointer", fontSize: "14px" }}
               >
-                {isLogin ? "Создать аккаунт" : "Уже есть аккаунт? Войти"}
+                {isLogin ? "📝 Создать аккаунт" : "🔑 Уже есть аккаунт? Войти"}
               </button>
             </div>
           </div>
@@ -234,21 +233,24 @@
       const [formNote, setFormNote] = useState("");
       const [currency, setCurrency] = useState(userData.settings?.currency || "RUB");
       const [toast, setToast] = useState(null);
-      const nextId = useRef(expenses.length + 1);
+      const nextId = useRef(expenses.length + 100);
 
-      const showToast = (msg) => {
-        setToast(msg);
+      const showToast = (msg, isError = false) => {
+        setToast({ msg, isError });
         setTimeout(() => setToast(null), 2000);
       };
 
       const addExpense = () => {
-        if (!formAmount || parseFloat(formAmount) <= 0) return;
+        if (!formAmount || parseFloat(formAmount) <= 0) {
+          showToast("Введите сумму", true);
+          return;
+        }
         
         const newExpense = {
           id: nextId.current++,
           amount: parseFloat(formAmount),
           category: formCategory,
-          note: formNote || CATEGORIES.find(c => c.id === formCategory).label,
+          note: formNote.trim() || CATEGORIES.find(c => c.id === formCategory).label,
           date: todayStr()
         };
         
@@ -270,7 +272,7 @@
         setExpenses(newExpenses);
         setUserData({ ...userData, expenses: newExpenses });
         updateUser(userKey, { expenses: newExpenses });
-        showToast("🗑️ Расход удален");
+        showToast("🗑️ Расход удален", true);
       };
 
       const totalToday = expenses.filter(e => e.date === todayStr()).reduce((sum, e) => sum + e.amount, 0);
@@ -278,24 +280,32 @@
 
       const getCategory = (id) => CATEGORIES.find(c => c.id === id) || CATEGORIES[6];
 
+      const updateCurrency = (newCurrency) => {
+        setCurrency(newCurrency);
+        const newSettings = { ...userData.settings, currency: newCurrency };
+        setUserData({ ...userData, settings: newSettings });
+        updateUser(userKey, { settings: newSettings });
+        showToast("Валюта изменена");
+      };
+
       return (
         <div style={{ maxWidth: "430px", margin: "0 auto", background: "#0F0F13", minHeight: "100vh", color: "#fff" }}>
           {/* Header */}
-          <div style={{ padding: "20px", background: "linear-gradient(135deg, #1A1A24, #0F0F13)" }}>
+          <div style={{ padding: "20px", background: "linear-gradient(135deg, #1A1A24, #0F0F13)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <div style={{ fontSize: "12px", color: "#888" }}>{new Date().toLocaleDateString()}</div>
-                <h2 style={{ marginTop: "4px" }}>
-                  {page === "dashboard" && "Обзор"}
-                  {page === "expenses" && "Расходы"}
-                  {page === "settings" && "Настройки"}
+                <div style={{ fontSize: "12px", color: "#888", textTransform: "uppercase", letterSpacing: "1px" }}>{new Date().toLocaleDateString()}</div>
+                <h2 style={{ marginTop: "4px", fontSize: "24px", fontWeight: "bold" }}>
+                  {page === "dashboard" && "📊 Обзор"}
+                  {page === "expenses" && "💳 Расходы"}
+                  {page === "settings" && "⚙️ Настройки"}
                 </h2>
               </div>
               <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                 {page !== "settings" && (
-                  <button onClick={() => setShowModal(true)} style={{ background: "#FF6B6B", border: "none", width: "40px", height: "40px", borderRadius: "12px", fontSize: "20px", cursor: "pointer" }}>+</button>
+                  <button onClick={() => setShowModal(true)} className="tap" style={{ background: "linear-gradient(135deg,#FF6B6B,#FF8E53)", border: "none", width: "40px", height: "40px", borderRadius: "12px", fontSize: "20px", cursor: "pointer", color: "#fff", fontWeight: "bold" }}>+</button>
                 )}
-                <div onClick={() => setPage("settings")} style={{ width: "40px", height: "40px", borderRadius: "12px", background: "#4ECDC4", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", cursor: "pointer" }}>
+                <div onClick={() => setPage("settings")} className="tap" style={{ width: "40px", height: "40px", borderRadius: "12px", background: "#4ECDC4", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: "16px", color: "#fff" }}>
                   {getInitials(userData.name)}
                 </div>
               </div>
@@ -303,68 +313,81 @@
           </div>
 
           {/* Content */}
-          <div style={{ padding: "20px" }}>
+          <div style={{ padding: "20px", paddingBottom: "80px" }}>
             {page === "dashboard" && (
               <>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
-                  <div style={{ background: "linear-gradient(135deg,#11998E,#38EF7D)", padding: "16px", borderRadius: "16px" }}>
-                    <div style={{ fontSize: "12px", opacity: 0.8 }}>Сегодня</div>
-                    <div style={{ fontSize: "24px", fontWeight: "bold", marginTop: "8px" }}>{fmtMoney(totalToday, currency)}</div>
+                  <div style={{ background: "linear-gradient(135deg,#11998E,#38EF7D)", padding: "20px", borderRadius: "16px" }}>
+                    <div style={{ fontSize: "11px", opacity: 0.8, textTransform: "uppercase", letterSpacing: "1px" }}>Сегодня</div>
+                    <div style={{ fontSize: "28px", fontWeight: "bold", marginTop: "8px" }}>{fmtMoney(totalToday, currency)}</div>
+                    <div style={{ fontSize: "11px", marginTop: "4px", opacity: 0.8 }}>{expenses.filter(e => e.date === todayStr()).length} операций</div>
                   </div>
-                  <div style={{ background: "#1A1A24", padding: "16px", borderRadius: "16px" }}>
-                    <div style={{ fontSize: "12px", color: "#888" }}>Всего</div>
-                    <div style={{ fontSize: "24px", fontWeight: "bold", marginTop: "8px", color: "#C3A6FF" }}>{fmtMoney(totalAll, currency)}</div>
+                  <div style={{ background: "#1A1A24", padding: "20px", borderRadius: "16px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div style={{ fontSize: "11px", color: "#888", textTransform: "uppercase", letterSpacing: "1px" }}>Всего</div>
+                    <div style={{ fontSize: "28px", fontWeight: "bold", marginTop: "8px", color: "#C3A6FF" }}>{fmtMoney(totalAll, currency)}</div>
+                    <div style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>{expenses.length} операций</div>
                   </div>
                 </div>
 
                 {expenses.length === 0 && (
-                  <div style={{ textAlign: "center", padding: "40px", color: "#888" }}>
-                    <div style={{ fontSize: "48px", marginBottom: "12px" }}>💸</div>
-                    <p>Нет расходов</p>
-                    <p style={{ fontSize: "12px", marginTop: "8px" }}>Нажмите + чтобы добавить</p>
+                  <div style={{ textAlign: "center", padding: "60px 20px", color: "#888" }}>
+                    <div style={{ fontSize: "64px", marginBottom: "16px" }}>💸</div>
+                    <p style={{ fontSize: "16px", fontWeight: "bold" }}>Нет расходов</p>
+                    <p style={{ fontSize: "13px", marginTop: "8px" }}>Нажмите кнопку <span style={{ color: "#FF6B6B" }}>+</span> чтобы добавить</p>
                   </div>
                 )}
 
-                {expenses.slice(-5).reverse().map(exp => {
+                {expenses.slice().reverse().slice(0, 5).map(exp => {
                   const cat = getCategory(exp.category);
                   return (
-                    <div key={exp.id} style={{ background: "#1A1A24", padding: "12px", borderRadius: "12px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div key={exp.id} style={{ background: "#1A1A24", padding: "14px", borderRadius: "12px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid rgba(255,255,255,0.05)" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <div style={{ fontSize: "24px" }}>{cat.label.split(" ")[0]}</div>
+                        <div style={{ fontSize: "28px" }}>{cat.icon}</div>
                         <div>
-                          <div style={{ fontWeight: "bold" }}>{exp.note}</div>
-                          <div style={{ fontSize: "11px", color: "#888" }}>{exp.date}</div>
+                          <div style={{ fontWeight: "bold", fontSize: "14px" }}>{exp.note}</div>
+                          <div style={{ fontSize: "10px", color: "#666", marginTop: "2px" }}>{exp.date}</div>
                         </div>
                       </div>
-                      <div style={{ color: cat.color, fontWeight: "bold" }}>-{fmtMoney(exp.amount, currency)}</div>
+                      <div style={{ color: cat.color, fontWeight: "bold", fontSize: "16px" }}>-{fmtMoney(exp.amount, currency)}</div>
                     </div>
                   );
                 })}
+                
+                {expenses.length > 5 && (
+                  <button onClick={() => setPage("expenses")} className="tap" style={{ width: "100%", padding: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#888", marginTop: "8px", cursor: "pointer" }}>📋 Показать все расходы</button>
+                )}
               </>
             )}
 
             {page === "expenses" && (
               <>
+                <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "16px" }}>
+                  {CATEGORIES.map(cat => (
+                    <button key={cat.id} onClick={() => setPage("expenses")} style={{ padding: "8px 16px", background: "#2A2A35", border: "none", borderRadius: "20px", color: "#fff", fontSize: "13px", cursor: "pointer", whiteSpace: "nowrap" }}>{cat.icon} {cat.label}</button>
+                  ))}
+                </div>
+                
                 {expenses.length === 0 && (
-                  <div style={{ textAlign: "center", padding: "40px", color: "#888" }}>
-                    <div style={{ fontSize: "48px", marginBottom: "12px" }}>📝</div>
+                  <div style={{ textAlign: "center", padding: "60px 20px", color: "#888" }}>
+                    <div style={{ fontSize: "64px", marginBottom: "16px" }}>📝</div>
                     <p>Нет расходов</p>
                   </div>
                 )}
+                
                 {[...expenses].reverse().map(exp => {
                   const cat = getCategory(exp.category);
                   return (
-                    <div key={exp.id} style={{ background: "#1A1A24", padding: "12px", borderRadius: "12px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div key={exp.id} style={{ background: "#1A1A24", padding: "14px", borderRadius: "12px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <div style={{ fontSize: "24px" }}>{cat.label.split(" ")[0]}</div>
+                        <div style={{ fontSize: "28px" }}>{cat.icon}</div>
                         <div>
                           <div style={{ fontWeight: "bold" }}>{exp.note}</div>
-                          <div style={{ fontSize: "11px", color: "#888" }}>{exp.date}</div>
+                          <div style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}>{exp.date}</div>
                         </div>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                         <div style={{ color: cat.color, fontWeight: "bold" }}>-{fmtMoney(exp.amount, currency)}</div>
-                        <button onClick={() => deleteExpense(exp.id)} style={{ background: "rgba(255,107,107,0.2)", border: "none", padding: "6px 10px", borderRadius: "8px", cursor: "pointer" }}>🗑️</button>
+                        <button onClick={() => deleteExpense(exp.id)} className="tap" style={{ background: "rgba(255,107,107,0.15)", border: "none", padding: "6px 10px", borderRadius: "8px", cursor: "pointer", fontSize: "14px" }}>🗑️</button>
                       </div>
                     </div>
                   );
@@ -374,22 +397,23 @@
 
             {page === "settings" && (
               <>
-                <div style={{ background: "#1A1A24", padding: "20px", borderRadius: "16px", marginBottom: "20px", textAlign: "center" }}>
-                  <div style={{ width: "60px", height: "60px", borderRadius: "20px", background: "#4ECDC4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", margin: "0 auto 12px" }}>
+                <div style={{ background: "#1A1A24", padding: "24px", borderRadius: "16px", marginBottom: "20px", textAlign: "center", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div style={{ width: "70px", height: "70px", borderRadius: "20px", background: "#4ECDC4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", margin: "0 auto 12px", fontWeight: "bold", color: "#fff" }}>
                     {getInitials(userData.name)}
                   </div>
-                  <h3>{userData.name}</h3>
+                  <h3 style={{ fontSize: "18px" }}>{userData.name}</h3>
                   <p style={{ color: "#888", fontSize: "12px", marginTop: "4px" }}>{userData.email}</p>
                 </div>
 
-                <div style={{ background: "#1A1A24", padding: "16px", borderRadius: "16px", marginBottom: "12px" }}>
-                  <div style={{ marginBottom: "12px", color: "#888", fontSize: "12px" }}>ВАЛЮТА</div>
+                <div style={{ background: "#1A1A24", padding: "20px", borderRadius: "16px", marginBottom: "12px" }}>
+                  <div style={{ marginBottom: "12px", color: "#888", fontSize: "11px", textTransform: "uppercase", letterSpacing: "1px" }}>💰 Валюта</div>
                   <div style={{ display: "flex", gap: "12px" }}>
                     {CURRENCIES.map(c => (
                       <button
                         key={c.id}
-                        onClick={() => { setCurrency(c.id); updateUser(userKey, { settings: { ...userData.settings, currency: c.id } }); }}
-                        style={{ flex: 1, padding: "12px", background: currency === c.id ? "#FF6B6B" : "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", cursor: "pointer" }}
+                        onClick={() => updateCurrency(c.id)}
+                        className="tap"
+                        style={{ flex: 1, padding: "12px", background: currency === c.id ? "linear-gradient(135deg,#FF6B6B,#FF8E53)" : "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", cursor: "pointer", fontWeight: currency === c.id ? "bold" : "normal" }}
                       >
                         {c.flag} {c.symbol}
                       </button>
@@ -397,9 +421,22 @@
                   </div>
                 </div>
 
+                <div style={{ background: "#1A1A24", padding: "20px", borderRadius: "16px", marginBottom: "12px" }}>
+                  <div style={{ marginBottom: "12px", color: "#888", fontSize: "11px", textTransform: "uppercase", letterSpacing: "1px" }}>📊 Статистика</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                    <span>Всего расходов:</span>
+                    <span style={{ fontWeight: "bold", color: "#C3A6FF" }}>{expenses.length}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0" }}>
+                    <span>Всего потрачено:</span>
+                    <span style={{ fontWeight: "bold", color: "#C3A6FF" }}>{fmtMoney(totalAll, currency)}</span>
+                  </div>
+                </div>
+
                 <button
                   onClick={() => { localStorage.removeItem("dayspent_session"); onLogout(); }}
-                  style={{ width: "100%", padding: "14px", background: "rgba(255,107,107,0.2)", border: "1px solid #FF6B6B", borderRadius: "12px", color: "#FF6B6B", cursor: "pointer", marginTop: "20px" }}
+                  className="tap"
+                  style={{ width: "100%", padding: "14px", background: "rgba(255,107,107,0.15)", border: "1px solid rgba(255,107,107,0.3)", borderRadius: "12px", color: "#FF6B6B", cursor: "pointer", marginTop: "12px", fontSize: "14px", fontWeight: "bold" }}
                 >
                   🚪 Выйти из аккаунта
                 </button>
@@ -408,40 +445,41 @@
           </div>
 
           {/* Bottom Navigation */}
-          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, maxWidth: "430px", margin: "0 auto", background: "#1A1A24", display: "flex", padding: "12px 20px", borderTop: "1px solid #2A2A35" }}>
+          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, maxWidth: "430px", margin: "0 auto", background: "#1A1A24", display: "flex", padding: "12px 20px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
             {[
               { id: "dashboard", label: "Обзор", icon: "📊" },
               { id: "expenses", label: "Расходы", icon: "💳" },
               { id: "settings", label: "Настройки", icon: "⚙️" },
             ].map(tab => (
-              <div key={tab.id} onClick={() => setPage(tab.id)} className="tap" style={{ flex: 1, textAlign: "center", opacity: page === tab.id ? 1 : 0.5 }}>
+              <div key={tab.id} onClick={() => setPage(tab.id)} className="tap" style={{ flex: 1, textAlign: "center", opacity: page === tab.id ? 1 : 0.5, transition: "opacity 0.2s" }}>
                 <div style={{ fontSize: "24px" }}>{tab.icon}</div>
-                <div style={{ fontSize: "11px", marginTop: "4px" }}>{tab.label}</div>
+                <div style={{ fontSize: "11px", marginTop: "4px", fontWeight: page === tab.id ? "bold" : "normal" }}>{tab.label}</div>
               </div>
             ))}
           </div>
 
           {/* Add Expense Modal */}
           {showModal && (
-            <div onClick={() => setShowModal(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "flex-end", zIndex: 1000 }}>
-              <div onClick={e => e.stopPropagation()} style={{ background: "#1A1A24", width: "100%", maxWidth: "430px", margin: "0 auto", borderRadius: "24px 24px 0 0", padding: "24px" }}>
-                <h3 style={{ marginBottom: "20px" }}>Новый расход</h3>
+            <div onClick={() => setShowModal(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.9)", display: "flex", alignItems: "flex-end", zIndex: 1000 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: "#1A1A24", width: "100%", maxWidth: "430px", margin: "0 auto", borderRadius: "24px 24px 0 0", padding: "28px 24px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+                <h3 style={{ marginBottom: "20px", fontSize: "20px", fontWeight: "bold" }}>➕ Новый расход</h3>
                 
                 <input
                   type="number"
                   placeholder="Сумма"
                   value={formAmount}
                   onChange={e => setFormAmount(e.target.value)}
-                  style={{ width: "100%", padding: "14px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "18px" }}
+                  style={{ width: "100%", padding: "14px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "18px", outline: "none" }}
+                  autoFocus
                 />
                 
                 <select
                   value={formCategory}
                   onChange={e => setFormCategory(e.target.value)}
-                  style={{ width: "100%", padding: "14px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff" }}
+                  style={{ width: "100%", padding: "14px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "14px", outline: "none" }}
                 >
                   {CATEGORIES.map(c => (
-                    <option key={c.id} value={c.id}>{c.label}</option>
+                    <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
                   ))}
                 </select>
                 
@@ -450,12 +488,12 @@
                   placeholder="Описание (необязательно)"
                   value={formNote}
                   onChange={e => setFormNote(e.target.value)}
-                  style={{ width: "100%", padding: "14px", marginBottom: "20px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff" }}
+                  style={{ width: "100%", padding: "14px", marginBottom: "20px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "14px", outline: "none" }}
                 />
                 
                 <div style={{ display: "flex", gap: "12px" }}>
-                  <button onClick={() => setShowModal(false)} style={{ flex: 1, padding: "14px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", cursor: "pointer" }}>Отмена</button>
-                  <button onClick={addExpense} style={{ flex: 2, padding: "14px", background: "linear-gradient(135deg,#FF6B6B,#FF8E53)", border: "none", borderRadius: "12px", color: "#fff", fontWeight: "bold", cursor: "pointer" }}>Добавить</button>
+                  <button onClick={() => setShowModal(false)} className="tap" style={{ flex: 1, padding: "14px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", cursor: "pointer", fontSize: "14px" }}>Отмена</button>
+                  <button onClick={addExpense} className="tap" style={{ flex: 2, padding: "14px", background: "linear-gradient(135deg,#FF6B6B,#FF8E53)", border: "none", borderRadius: "12px", color: "#fff", fontWeight: "bold", cursor: "pointer", fontSize: "14px" }}>Добавить</button>
                 </div>
               </div>
             </div>
@@ -463,8 +501,8 @@
 
           {/* Toast */}
           {toast && (
-            <div style={{ position: "fixed", bottom: "80px", left: "50%", transform: "translateX(-50%)", background: "#4ECDC4", color: "#fff", padding: "10px 20px", borderRadius: "20px", fontSize: "14px", zIndex: 1001 }}>
-              {toast}
+            <div style={{ position: "fixed", bottom: "80px", left: "50%", transform: "translateX(-50%)", background: toast.isError ? "#FF6B6B" : "#4ECDC4", color: "#fff", padding: "12px 24px", borderRadius: "30px", fontSize: "13px", zIndex: 1001, boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}>
+              {toast.msg}
             </div>
           )}
         </div>
@@ -491,7 +529,7 @@
       }, []);
 
       if (loading) {
-        return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: "#0F0F13", color: "#fff" }}>Загрузка...</div>;
+        return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: "#0F0F13", color: "#fff" }}>⏳ Загрузка...</div>;
       }
 
       if (!userKey || !userData) {
