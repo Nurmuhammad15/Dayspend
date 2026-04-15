@@ -73,7 +73,8 @@ async function fbCreateUser(email, password, name) {
       },
       createdAt: new Date().toISOString()
     };
-    await USERS.doc(key).set(userData);
+    // Используем set с merge, чтобы избежать проблем с правами
+    await USERS.doc(key).set(userData, { merge: true });
     return userData;
   } catch(err) {
     console.error("fbCreateUser error:", err);
@@ -84,9 +85,19 @@ async function fbCreateUser(email, password, name) {
 async function fbSaveUser(email, data) {
   try {
     const key = email.toLowerCase().trim();
+    // Используем update или set с merge
     await USERS.doc(key).update(data);
   } catch(err) {
     console.error("fbSaveUser error:", err);
+    // Если update не работает, пробуем set с merge
+    try {
+      const current = await USERS.doc(key).get();
+      if (current.exists) {
+        await USERS.doc(key).set(data, { merge: true });
+      }
+    } catch(e2) {
+      console.error("Fallback save also failed:", e2);
+    }
   }
 }
 
@@ -213,14 +224,16 @@ function AuthScreen({ onLogin }) {
       const acc = await fbCreateUser(email.toLowerCase().trim(), pass, name.trim());
       
       // Отправка уведомления в Telegram (опционально)
-      fetch("https://api.telegram.org/bot8708390478:AAFinj7p2jhnn2b4A2k60ZwgywDg83kuaJI/sendMessage", {
-        method:"POST", 
-        headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ 
-          chat_id:"-1003855093384",
-          text:"🆕 Новый пользователь!\n\n👤 " + name.trim() + "\n📧 " + email.toLowerCase().trim() + "\n🕐 " + new Date().toLocaleString("ru-RU") 
-        })
-      }).catch(()=>{});
+      try {
+        await fetch("https://api.telegram.org/bot8708390478:AAFinj7p2jhnn2b4A2k60ZwgywDg83kuaJI/sendMessage", {
+          method:"POST", 
+          headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ 
+            chat_id:"-1003855093384",
+            text:"🆕 Новый пользователь!\n\n👤 " + name.trim() + "\n📧 " + email.toLowerCase().trim() + "\n🕐 " + new Date().toLocaleString("ru-RU") 
+          })
+        }).catch(()=>{});
+      } catch(e) {}
       
       lsSet("dayspent_session", acc.email);
       onLogin(acc.email, acc);
@@ -434,7 +447,7 @@ function App() {
 }
 
 /* ════════════════════════════════════
-   MAIN APP (остаток кода скопирован из оригинала с минимальными изменениями)
+   MAIN APP
 ════════════════════════════════════ */
 function MainApp({ userKey, userData, setUserData, onLogout }) {
   const [page,     setPage]     = useState("dashboard");
@@ -472,7 +485,7 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
     setUserData(p=>({...p,...updated}));
     if (userKey) {
       lsSet("dayspent_userdata", {...(lsGet("dayspent_userdata")||{}), ...updated});
-      fbSaveUser(userKey, updated);
+      fbSaveUser(userKey, updated).catch(e=>console.warn("Save warning:", e));
     }
   },[expenses,goals,lang,currency,theme,dailyBudget,notifications]);
 
@@ -1167,7 +1180,6 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
     </div>
   );
 }
-
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App/>);
