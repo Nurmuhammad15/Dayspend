@@ -4,646 +4,504 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>DaySpent</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
-    html,body{width:100%;height:100%;overflow-x:hidden;background:#0F0F13}
-    #root{width:100%;min-height:100vh}
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
-    *{box-sizing:border-box;margin:0;padding:0}
-    input{outline:none;border:none;background:none;color:inherit;font-family:inherit}
-    .tap{transition:transform .12s,opacity .12s;cursor:pointer}.tap:active{transform:scale(.95);opacity:.85}
-    .pEnter{animation:pUp .3s cubic-bezier(.22,1,.36,1)}
-    @keyframes pUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
-    .tAnim{animation:tIn .3s cubic-bezier(.22,1,.36,1)}
-    @keyframes tIn{from{opacity:0;transform:translateX(60px)}to{opacity:1;transform:translateX(0)}}
-    .mEnter{animation:mIn .25s cubic-bezier(.22,1,.36,1)}
-    @keyframes mIn{from{opacity:0;transform:translateY(40px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
-    .bAnim{animation:bG .6s cubic-bezier(.22,1,.36,1) forwards;transform-origin:bottom}
-    @keyframes bG{from{transform:scaleY(0)}to{transform:scaleY(1)}}
-    .nav{transition:all .2s;cursor:pointer}
-    .eRow{transition:background .15s}.eRow:hover{background:rgba(255,255,255,.04)}
-    .chip{transition:all .15s;cursor:pointer}
-    .tog{position:relative;width:46px;height:26px}
-    .tog input{opacity:0;width:0;height:0}
-    .slid{position:absolute;inset:0;border-radius:26px;background:rgba(255,255,255,.1);transition:.3s;cursor:pointer}
-    .slid:before{content:"";position:absolute;height:20px;width:20px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s}
-    input:checked+.slid{background:linear-gradient(135deg,#FF6B6B,#FF8E53)}
-    input:checked+.slid:before{transform:translateX(20px)}
-    .sr{display:flex;align-items:center;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.05)}
-    .sr:last-child{border-bottom:none}
-    .aSlide{animation:aSlide .35s cubic-bezier(.22,1,.36,1)}
-    @keyframes aSlide{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
-    .aSlideBack{animation:aSlideBack .35s cubic-bezier(.22,1,.36,1)}
-    @keyframes aSlideBack{from{opacity:0;transform:translateX(-30px)}to{opacity:1;transform:translateX(0)}}
-    @keyframes spin{to{transform:rotate(360deg)}}
+    body{background:#0F0F13;font-family:'Segoe UI',sans-serif}
+    .tap{cursor:pointer;transition:transform 0.1s}
+    .tap:active{transform:scale(0.95)}
   </style>
 </head>
 <body>
   <div id="root"></div>
-  <script>
-    // Полностью локальная версия без Firebase зависимостей
-    (function() {
-      const CATEGORIES = [
-        { id:"food", label:"Еда", icon:"🍽️", color:"#FF6B6B" },
-        { id:"transport", label:"Транспорт", icon:"🚇", color:"#4ECDC4" },
-        { id:"shopping", label:"Покупки", icon:"🛍️", color:"#FFE66D" },
-        { id:"health", label:"Здоровье", icon:"💊", color:"#A8E6CF" },
-        { id:"entertainment", label:"Развлечения", icon:"🎬", color:"#C3A6FF" },
-        { id:"utilities", label:"Коммунальные", icon:"💡", color:"#FFB347" },
-        { id:"other", label:"Другое", icon:"📦", color:"#B0B0B0" },
-      ];
-      const DAYS_RU = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
-      const DAYS_EN = ["Mo","Tu","We","Th","Fr","Sa","Su"];
-      const CURRENCIES = [
-        { id:"RUB", symbol:"₽", label:"Российский рубль", flag:"🇷🇺", locale:"ru-RU" },
-        { id:"USD", symbol:"$", label:"Доллар США", flag:"🇺🇸", locale:"en-US" },
-        { id:"EUR", symbol:"€", label:"Евро", flag:"🇪🇺", locale:"de-DE" },
-        { id:"GBP", symbol:"£", label:"Фунт стерлингов", flag:"🇬🇧", locale:"en-GB" },
-        { id:"KZT", symbol:"₸", label:"Казахстанский тенге", flag:"🇰🇿", locale:"kk-KZ" },
-        { id:"UZS", symbol:"сум", label:"Узбекский сум", flag:"🇺🇿", locale:"uz-UZ" },
-        { id:"CNY", symbol:"¥", label:"Китайский юань", flag:"🇨🇳", locale:"zh-CN" },
-        { id:"TRY", symbol:"₺", label:"Турецкая лира", flag:"🇹🇷", locale:"tr-TR" },
-      ];
-      const RATES = { RUB:1, USD:0.011, EUR:0.010, GBP:0.0086, KZT:5.1, UZS:140, CNY:0.079, TRY:0.36 };
-      const THEMES = [
-        { id:"dark", label:"Тёмная", labelEn:"Dark", bg:"#0F0F13", card:"#1A1A24" },
-        { id:"midnight", label:"Полночь", labelEn:"Midnight", bg:"#080B14", card:"#0F1520" },
-        { id:"charcoal", label:"Антрацит", labelEn:"Charcoal", bg:"#111111", card:"#1C1C1C" },
-      ];
-      const GOAL_COLORS = ["#FF6B6B","#4ECDC4","#C3A6FF","#FFE66D","#A8E6CF","#FFB347","#FF8E53","#74B9FF"];
-      const GOAL_ICONS = ["🎯","🏖️","🚗","📱","🏠","✈️","💍","🎓","💻","🎸","🏋️","🛳️","🎁","💎"];
-      const AV_COLORS = ["#FF6B6B","#4ECDC4","#C3A6FF","#FFB347","#A8E6CF","#FF8E53","#74B9FF","#FFE66D"];
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
 
-      function todayStr() {
-        const d = new Date();
-        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-      }
-      function fmtMoney(n, cid) {
-        const cur = CURRENCIES.find(c=>c.id===cid) || CURRENCIES[0];
-        return new Intl.NumberFormat(cur.locale,{maximumFractionDigits:0}).format(n*(RATES[cid]||1))+" "+cur.symbol;
-      }
-      function getInitials(name="") {
-        return name.split(" ").map(w=>w[0]||"").join("").toUpperCase().slice(0,2)||"?";
-      }
-      function getAvatarColor(name="") {
-        let h=0; for(const c of name) h=(h+c.charCodeAt(0))%AV_COLORS.length;
-        return AV_COLORS[h];
-      }
-      function lsGet(key) {
-        try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; }
-      }
-      function lsSet(key, val) {
-        try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
-      }
+    // Константы
+    const CATEGORIES = [
+      { id:"food", label:"🍽️ Еда", color:"#FF6B6B" },
+      { id:"transport", label:"🚇 Транспорт", color:"#4ECDC4" },
+      { id:"shopping", label:"🛍️ Покупки", color:"#FFE66D" },
+      { id:"health", label:"💊 Здоровье", color:"#A8E6CF" },
+      { id:"entertainment", label:"🎬 Развлечения", color:"#C3A6FF" },
+      { id:"utilities", label:"💡 Коммунальные", color:"#FFB347" },
+      { id:"other", label:"📦 Другое", color:"#B0B0B0" },
+    ];
 
-      // Простые функции для работы с пользователями (локально)
-      function getUser(email) {
-        const users = lsGet("dayspent_users") || {};
-        const key = email.toLowerCase().trim();
-        return users[key] || null;
+    const CURRENCIES = [
+      { id:"RUB", symbol:"₽", label:"Российский рубль", flag:"🇷🇺" },
+      { id:"USD", symbol:"$", label:"Доллар США", flag:"🇺🇸" },
+      { id:"EUR", symbol:"€", label:"Евро", flag:"🇪🇺" },
+    ];
+
+    // Вспомогательные функции
+    function todayStr() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    }
+
+    function fmtMoney(amount, currency) {
+      const cur = CURRENCIES.find(c => c.id === currency) || CURRENCIES[0];
+      return Math.round(amount) + " " + cur.symbol;
+    }
+
+    function getInitials(name) {
+      return name ? name.substring(0,2).toUpperCase() : "U";
+    }
+
+    // Работа с localStorage
+    function getUsers() {
+      const users = localStorage.getItem("dayspent_users");
+      return users ? JSON.parse(users) : {};
+    }
+
+    function saveUsers(users) {
+      localStorage.setItem("dayspent_users", JSON.stringify(users));
+    }
+
+    function getUser(email) {
+      const users = getUsers();
+      return users[email.toLowerCase()] || null;
+    }
+
+    function createUser(email, password, name) {
+      const users = getUsers();
+      const key = email.toLowerCase();
+      if (users[key]) return null;
+      
+      users[key] = {
+        email: key,
+        password: password,
+        name: name,
+        expenses: [],
+        goals: [],
+        settings: {
+          lang: "ru",
+          currency: "RUB",
+          theme: "dark",
+          dailyBudget: ""
+        },
+        createdAt: new Date().toISOString()
+      };
+      saveUsers(users);
+      return users[key];
+    }
+
+    function updateUser(email, data) {
+      const users = getUsers();
+      const key = email.toLowerCase();
+      if (users[key]) {
+        users[key] = { ...users[key], ...data };
+        saveUsers(users);
       }
+    }
 
-      function createUser(email, password, name) {
-        const users = lsGet("dayspent_users") || {};
-        const key = email.toLowerCase().trim();
-        if (users[key]) return null;
-        
-        const userData = {
-          email: key,
-          password: password,
-          name: name.trim(),
-          expenses: [],
-          goals: [],
-          settings: {
-            lang: "ru",
-            currency: "RUB",
-            theme: "dark",
-            dailyBudget: "",
-            notifications: true
-          },
-          createdAt: new Date().toISOString()
-        };
-        users[key] = userData;
-        lsSet("dayspent_users", users);
-        return userData;
-      }
+    // Компонент входа
+    function AuthScreen({ onLogin }) {
+      const [isLogin, setIsLogin] = useState(true);
+      const [email, setEmail] = useState("");
+      const [password, setPassword] = useState("");
+      const [name, setName] = useState("");
+      const [confirmPassword, setConfirmPassword] = useState("");
+      const [error, setError] = useState("");
+      const [loading, setLoading] = useState(false);
 
-      function saveUser(email, data) {
-        const users = lsGet("dayspent_users") || {};
-        const key = email.toLowerCase().trim();
-        if (users[key]) {
-          users[key] = { ...users[key], ...data };
-          lsSet("dayspent_users", users);
-        }
-      }
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError("");
+        setLoading(true);
 
-      // React
-      const { useState, useRef, useEffect } = React;
-
-      // Auth Screen Component
-      function AuthScreen({ onLogin }) {
-        const [screen, setScreen] = useState("login");
-        const [email, setEmail] = useState("");
-        const [pass, setPass] = useState("");
-        const [confirm, setConfirm] = useState("");
-        const [name, setName] = useState("");
-        const [err, setErr] = useState("");
-        const [showP, setShowP] = useState(false);
-        const [showC, setShowC] = useState(false);
-        const [loading, setLoading] = useState(false);
-        const [slideDir, setSlideDir] = useState(1);
-
-        const goTo = (s) => {
-          setSlideDir(s==="register" ? 1 : -1);
-          setErr(""); setEmail(""); setPass(""); setConfirm(""); setName("");
-          setScreen(s);
-        };
-
-        const doLogin = () => {
-          setErr("");
-          if (!email.trim()) { setErr("Введите email"); return; }
-          if (!pass.trim()) { setErr("Введите пароль"); return; }
-          setLoading(true);
-          
-          setTimeout(() => {
-            const acc = getUser(email);
-            if (!acc) { 
-              setErr("Аккаунт не найден. Сначала зарегистрируйтесь"); 
-              setLoading(false);
-              return; 
+        setTimeout(() => {
+          if (isLogin) {
+            const user = getUser(email);
+            if (!user) {
+              setError("Аккаунт не найден");
+            } else if (user.password !== password) {
+              setError("Неверный пароль");
+            } else {
+              localStorage.setItem("dayspent_session", user.email);
+              onLogin(user.email, user);
             }
-            if (acc.password !== pass) { 
-              setErr("Неверный пароль"); 
+          } else {
+            if (!name.trim()) {
+              setError("Введите имя");
               setLoading(false);
-              return; 
+              return;
             }
-            lsSet("dayspent_session", acc.email);
-            onLogin(acc.email, acc);
-            setLoading(false);
-          }, 300);
-        };
-
-        const doRegister = () => {
-          setErr("");
-          if (!name.trim()) { setErr("Введите имя"); return; }
-          if (!email.trim()) { setErr("Введите email"); return; }
-          if (pass.length < 6) { setErr("Пароль — минимум 6 символов"); return; }
-          if (pass !== confirm) { setErr("Пароли не совпадают"); return; }
-          
-          setLoading(true);
-          
-          setTimeout(() => {
-            const existing = getUser(email);
-            if (existing) { 
-              setErr("Email уже зарегистрирован"); 
+            if (password.length < 6) {
+              setError("Пароль должен быть минимум 6 символов");
               setLoading(false);
-              return; 
+              return;
             }
-            
-            const acc = createUser(email, pass, name);
-            if (!acc) {
-              setErr("Ошибка при регистрации"); 
+            if (password !== confirmPassword) {
+              setError("Пароли не совпадают");
               setLoading(false);
               return;
             }
             
-            lsSet("dayspent_session", acc.email);
-            onLogin(acc.email, acc);
-            setLoading(false);
-          }, 300);
-        };
-
-        const av = getAvatarColor(name||email);
-        const animClass = slideDir===1 ? "aSlide" : "aSlideBack";
-
-        const Spin = () => <div style={{width:18,height:18,border:"3px solid rgba(255,255,255,.25)",
-          borderTopColor:"#fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>;
-
-        return React.createElement("div", {
-          style: {minHeight:"100vh",width:"100vw",background:"#08080F",display:"flex",
-            alignItems:"center",justifyContent:"center",fontFamily:"'Outfit','Segoe UI',sans-serif",
-            padding:"24px 20px",boxSizing:"border-box",overflowX:"hidden"}
-        },
-          React.createElement("div", { className: animClass, key: screen, style: {width:"100%",maxWidth:380,background:"#13131A",
-            borderRadius:24,padding:"28px 24px",border:"1px solid rgba(255,255,255,.07)",
-            boxShadow:"0 24px 64px rgba(0,0,0,.6)"} },
-            
-            React.createElement("div", { style: {display:"flex",alignItems:"center",gap:10,marginBottom:28} },
-              React.createElement("div", { style: {width:36,height:36,borderRadius:10,
-                background:"linear-gradient(135deg,#FF6B6B,#FF8E53)",
-                display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,
-                boxShadow:"0 6px 18px rgba(255,107,107,.35)"} }, "💸"),
-              React.createElement("span", { style: {fontSize:18,fontWeight:800,color:"#F0EEE8",letterSpacing:-.3} }, "DaySpent")
-            ),
-
-            screen === "login" ? React.createElement(React.Fragment, null,
-              React.createElement("div", { style: {fontSize:22,fontWeight:800,color:"#F0EEE8",marginBottom:4} }, "С возвращением"),
-              React.createElement("div", { style: {fontSize:14,color:"#555",marginBottom:22} }, "Войдите в свой аккаунт"),
-              err && React.createElement("div", { style: {background:"rgba(255,107,107,.1)",border:"1px solid rgba(255,107,107,.25)",
-                borderRadius:11,padding:"9px 13px",marginBottom:12,fontSize:13,color:"#FF9090",
-                display:"flex",alignItems:"center",gap:7} }, "⚠️ ", err),
-              React.createElement("div", { style: {background:"rgba(255,255,255,.05)",borderRadius:14,padding:"12px 14px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.07)"} },
-                React.createElement("div", { style: {fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,marginBottom:3} }, "EMAIL"),
-                React.createElement("input", { value: email, onChange: e => setEmail(e.target.value), type: "email", placeholder: "you@example.com",
-                  style: {width:"100%",fontSize:15,color:"#F0EEE8",outline:"none",border:"none",background:"none",fontFamily:"inherit"} })
-              ),
-              React.createElement("div", { style: {background:"rgba(255,255,255,.05)",borderRadius:14,padding:"12px 14px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.07)"} },
-                React.createElement("div", { style: {fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,marginBottom:3} }, "ПАРОЛЬ"),
-                React.createElement("div", { style: {display:"flex",alignItems:"center"} },
-                  React.createElement("input", { value: pass, onChange: e => setPass(e.target.value), type: showP ? "text" : "password", placeholder: "••••••",
-                    style: {flex:1,fontSize:15,color:"#F0EEE8",outline:"none",border:"none",background:"none",fontFamily:"inherit"} }),
-                  React.createElement("span", { onClick: () => setShowP(v => !v), style: {cursor:"pointer",fontSize:16,opacity:.4,userSelect:"none",paddingLeft:8} }, showP ? "🙈" : "👁️")
-                )
-              ),
-              React.createElement("div", { style: {marginBottom:18} }),
-              React.createElement("button", { className: "tap", onClick: doLogin, disabled: loading, style: {width:"100%",padding:"15px",
-                border:"none",borderRadius:15,cursor:"pointer",background:"linear-gradient(135deg,#FF6B6B,#FF8E53)",
-                color:"#fff",fontSize:15,fontWeight:800,fontFamily:"inherit",
-                boxShadow:"0 8px 24px rgba(255,107,107,.3)",
-                display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity: loading ? 0.75 : 1,
-                pointerEvents: loading ? "none" : "auto"} },
-                loading ? React.createElement(Spin, null) : "Войти →"
-              ),
-              React.createElement("div", { style: {textAlign:"center",fontSize:14,color:"#444",marginTop:20} },
-                "Нет аккаунта? ",
-                React.createElement("span", { className: "tap", style: {color:"#FF6B6B",fontWeight:700,cursor:"pointer"}, onClick: () => goTo("register") }, "Зарегистрироваться")
-              )
-            ) : React.createElement(React.Fragment, null,
-              React.createElement("div", { style: {fontSize:22,fontWeight:800,color:"#F0EEE8",marginBottom:4} }, "Создать аккаунт"),
-              React.createElement("div", { style: {fontSize:14,color:"#555",marginBottom:22} }, "Заполните данные ниже"),
-              (name||email) && React.createElement("div", { style: {width:50,height:50,borderRadius:15,background:av,
-                display:"flex",alignItems:"center",justifyContent:"center",
-                fontSize:18,fontWeight:800,color:"#fff",margin:"0 auto 16px",
-                boxShadow: `0 6px 18px ${av}44`} }, getInitials(name||email)),
-              err && React.createElement("div", { style: {background:"rgba(255,107,107,.1)",border:"1px solid rgba(255,107,107,.25)",
-                borderRadius:11,padding:"9px 13px",marginBottom:12,fontSize:13,color:"#FF9090",
-                display:"flex",alignItems:"center",gap:7} }, "⚠️ ", err),
-              React.createElement("div", { style: {background:"rgba(255,255,255,.05)",borderRadius:14,padding:"12px 14px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.07)"} },
-                React.createElement("div", { style: {fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,marginBottom:3} }, "ИМЯ"),
-                React.createElement("input", { value: name, onChange: e => setName(e.target.value), type: "text", placeholder: "Иван Иванов",
-                  style: {width:"100%",fontSize:15,color:"#F0EEE8",outline:"none",border:"none",background:"none",fontFamily:"inherit"} })
-              ),
-              React.createElement("div", { style: {background:"rgba(255,255,255,.05)",borderRadius:14,padding:"12px 14px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.07)"} },
-                React.createElement("div", { style: {fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,marginBottom:3} }, "EMAIL"),
-                React.createElement("input", { value: email, onChange: e => setEmail(e.target.value), type: "email", placeholder: "you@example.com",
-                  style: {width:"100%",fontSize:15,color:"#F0EEE8",outline:"none",border:"none",background:"none",fontFamily:"inherit"} })
-              ),
-              React.createElement("div", { style: {background:"rgba(255,255,255,.05)",borderRadius:14,padding:"12px 14px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.07)"} },
-                React.createElement("div", { style: {fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,marginBottom:3} }, "ПАРОЛЬ"),
-                React.createElement("div", { style: {display:"flex",alignItems:"center"} },
-                  React.createElement("input", { value: pass, onChange: e => setPass(e.target.value), type: showP ? "text" : "password", placeholder: "Минимум 6 символов",
-                    style: {flex:1,fontSize:15,color:"#F0EEE8",outline:"none",border:"none",background:"none",fontFamily:"inherit"} }),
-                  React.createElement("span", { onClick: () => setShowP(v => !v), style: {cursor:"pointer",fontSize:16,opacity:.4,userSelect:"none",paddingLeft:8} }, showP ? "🙈" : "👁️")
-                )
-              ),
-              React.createElement("div", { style: {background:"rgba(255,255,255,.05)",borderRadius:14,padding:"12px 14px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.07)"} },
-                React.createElement("div", { style: {fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,marginBottom:3} }, "ПОДТВЕРДИТЕ ПАРОЛЬ"),
-                React.createElement("div", { style: {display:"flex",alignItems:"center"} },
-                  React.createElement("input", { value: confirm, onChange: e => setConfirm(e.target.value), type: showC ? "text" : "password", placeholder: "••••••",
-                    style: {flex:1,fontSize:15,color:"#F0EEE8",outline:"none",border:"none",background:"none",fontFamily:"inherit"} }),
-                  React.createElement("span", { onClick: () => setShowC(v => !v), style: {cursor:"pointer",fontSize:16,opacity:.4,userSelect:"none",paddingLeft:8} }, showC ? "🙈" : "👁️")
-                )
-              ),
-              React.createElement("div", { style: {marginBottom:18} }),
-              React.createElement("button", { className: "tap", onClick: doRegister, disabled: loading, style: {width:"100%",padding:"15px",
-                border:"none",borderRadius:15,cursor:"pointer",background:"linear-gradient(135deg,#FF6B6B,#FF8E53)",
-                color:"#fff",fontSize:15,fontWeight:800,fontFamily:"inherit",
-                boxShadow:"0 8px 24px rgba(255,107,107,.3)",
-                display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity: loading ? 0.75 : 1,
-                pointerEvents: loading ? "none" : "auto"} },
-                loading ? React.createElement(Spin, null) : "Создать аккаунт →"
-              ),
-              React.createElement("div", { style: {textAlign:"center",fontSize:14,color:"#444",marginTop:20} },
-                "Уже есть аккаунт? ",
-                React.createElement("span", { className: "tap", style: {color:"#FF6B6B",fontWeight:700,cursor:"pointer"}, onClick: () => goTo("login") }, "Войти")
-              )
-            )
-          )
-        );
-      }
-
-      // Main App Component - упрощенная версия
-      function MainApp({ userKey, userData, setUserData, onLogout }) {
-        const [page, setPage] = useState("dashboard");
-        const [toast, setToast] = useState(null);
-        const [showModal, setShowModal] = useState(false);
-        const [form, setForm] = useState({amount:"",category:"food",note:"",date:todayStr()});
-        const [filterCat, setFilterCat] = useState("all");
-        const [editId, setEditId] = useState(null);
-        const nextId = useRef(500);
-
-        const [lang, setLang] = useState(userData.settings?.lang||"ru");
-        const [currency, setCurrency] = useState(userData.settings?.currency||"RUB");
-        const [theme, setTheme] = useState(userData.settings?.theme||"dark");
-        const [dailyBudget, setDailyBudget] = useState(userData.settings?.dailyBudget||"");
-        const [notifications, setNotifs] = useState(userData.settings?.notifications!==false);
-        const [showClear, setShowClear] = useState(false);
-
-        const [expenses, setExpenses] = useState(userData.expenses||[]);
-        const [goals, setGoals] = useState(userData.goals||[]);
-
-        const [showGoalModal, setShowGoalModal] = useState(false);
-        const [goalForm, setGoalForm] = useState({name:"",target:"",saved:"",color:"#4ECDC4",icon:"🎯"});
-        const [editGoalId, setEditGoalId] = useState(null);
-        const [showDeposit, setShowDeposit] = useState(null);
-        const [depositForm, setDepositForm] = useState({amount:"",isWithdraw:false});
-        const nextGid = useRef(700);
-
-        const [showProfile, setShowProfile] = useState(false);
-        const [profForm, setProfForm] = useState({name:userData.name||""});
-        const [showLogout, setShowLogout] = useState(false);
-
-        // Сохранение данных
-        useEffect(() => {
-          const updated = {expenses, goals, settings: {lang, currency, theme, dailyBudget, notifications}};
-          setUserData(p => ({...p, ...updated}));
-          if (userKey) {
-            lsSet("dayspent_userdata", {...(lsGet("dayspent_userdata")||{}), ...updated});
-            saveUser(userKey, updated);
-          }
-        }, [expenses, goals, lang, currency, theme, dailyBudget, notifications]);
-
-        const T = {
-          ru: {
-            dashboard:"Обзор", expenses:"Расходы", analytics:"Аналитика", settings:"Настройки", piggy:"Копилка",
-            today:"Сегодня", total:"Всего", week:"Неделя", byCat:"По категориям", recent:"Последние", allA:"Все →",
-            dist:"Распределение", details:"Детали по категориям", byDays:"По дням недели",
-            newE:"Новый расход", editE:"Редактировать", saveC:"Сохранить изменения", addE:"Добавить расход",
-            amL:"СУММА", catL:"КАТЕГОРИЯ", noteL:"ЗАМЕТКА", dateL:"ДАТА", notePh:"Описание расхода...",
-            ops:"операций", noData:"Нет данных", noExp:"Нет расходов",
-            updated:"Расход обновлён", added:"Расход добавлен", deleted:"Удалено",
-            lang:"Язык", cur:"Валюта", themeL:"Тема", budget:"Дневной бюджет", budgetH:"Лимит расходов в день",
-            notifL:"Уведомления", notifH:"Напоминания о расходах", dataL:"Данные", clearD:"Очистить все данные",
-            clearQ:"Вы уверены? Все расходы будут удалены.", yes:"Да, удалить", cancel:"Отмена",
-            ver:"Версия 2.0.0", made:"Сделано с ❤️",
-            bLabel:"Бюджет на день", bOver:"Превышен бюджет!", bOf:"из", savedM:"Сохранено", days: DAYS_RU,
-            addG:"Новая цель", gTarget:"Целевая сумма", gSaved:"Уже накоплено", gColor:"ЦВЕТ",
-            deposit:"Пополнить", withdraw:"Снять", gAdded:"Цель создана!", gDel:"Цель удалена",
-            depDone:"Пополнено!", wDone:"Снято!", noGoals:"Нет целей. Создайте первую!",
-            rem:"осталось", comp:"выполнено", editG:"Редактировать", saveG:"Сохранить цель", createG:"Создать цель",
-            totSaved:"Всего накоплено", totGoals:"Целей",
-            account:"Аккаунт", logout:"Выйти", logoutQ:"Вы уверены, что хотите выйти?", logoutY:"Выйти",
-            editProf:"Редактировать профиль", saveProf:"Сохранить", nameL:"ИМЯ", emailL:"EMAIL",
-            profSaved:"Профиль обновлён", myAcc:"Мой кабинет",
-          },
-          en: {
-            dashboard:"Overview", expenses:"Expenses", analytics:"Analytics", settings:"Settings", piggy:"Savings",
-            today:"Today", total:"Total", week:"Week", byCat:"By Category", recent:"Recent", allA:"All →",
-            dist:"Distribution", details:"Category Details", byDays:"By Day of Week",
-            newE:"New Expense", editE:"Edit Expense", saveC:"Save Changes", addE:"Add Expense",
-            amL:"AMOUNT", catL:"CATEGORY", noteL:"NOTE", dateL:"DATE", notePh:"Expense description...",
-            ops:"transactions", noData:"No data", noExp:"No expenses",
-            updated:"Expense updated", added:"Expense added", deleted:"Deleted",
-            lang:"Language", cur:"Currency", themeL:"Theme", budget:"Daily Budget", budgetH:"Daily spending limit",
-            notifL:"Notifications", notifH:"Spending reminders", dataL:"Data", clearD:"Clear all data",
-            clearQ:"Are you sure? All expenses will be deleted.", yes:"Yes, delete", cancel:"Cancel",
-            ver:"Version 2.0.0", made:"Made with ❤️",
-            bLabel:"Daily budget", bOver:"Budget exceeded!", bOf:"of", savedM:"Saved", days: DAYS_EN,
-            addG:"New Goal", gTarget:"Target amount", gSaved:"Already saved", gColor:"COLOR",
-            deposit:"Add funds", withdraw:"Withdraw", gAdded:"Goal created!", gDel:"Goal deleted",
-            depDone:"Deposited!", wDone:"Withdrawn!", noGoals:"No goals. Create your first!",
-            rem:"remaining", comp:"completed", editG:"Edit", saveG:"Save goal", createG:"Create goal",
-            totSaved:"Total saved", totGoals:"Goals",
-            account:"Account", logout:"Log out", logoutQ:"Are you sure you want to log out?", logoutY:"Log out",
-            editProf:"Edit profile", saveProf:"Save", nameL:"NAME", emailL:"EMAIL",
-            profSaved:"Profile updated", myAcc:"My Account",
-          }
-        }[lang];
-
-        const CT = THEMES.find(t=>t.id===theme)||THEMES[0];
-        const M = (n) => fmtMoney(n, currency);
-        const CSym = CURRENCIES.find(c=>c.id===currency)?.symbol||"₽";
-        const showT = (msg, type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),2500); };
-
-        const totToday = expenses.filter(e=>e.date===todayStr()).reduce((s,e)=>s+e.amount,0);
-        const totAll = expenses.reduce((s,e)=>s+e.amount,0);
-        const budN = Number(dailyBudget)||0;
-        const budNinRub = budN>0 ? budN / (RATES[currency]||1) : 0;
-        const budPct = budNinRub>0?Math.min(totToday/budNinRub,1):0;
-        const byCat = CATEGORIES.map(cat=>({...cat,total:expenses.filter(e=>e.category===cat.id).reduce((s,e)=>s+e.amount,0)})).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
-        const maxCat = byCat[0]?.total||1;
-        const sortedE = [...(filterCat==="all"?expenses:expenses.filter(e=>e.category===filterCat))].sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
-        const getCat = (id) => CATEGORIES.find(c=>c.id===id)||CATEGORIES[6];
-        const wkData = Array.from({length:7},(_,i)=>{
-          const d=new Date(); d.setDate(d.getDate()-(6-i));
-          const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-          return {day:T.days[(d.getDay()+6)%7],total:expenses.filter(e=>e.date===k).reduce((s,e)=>s+e.amount,0),isToday:k===todayStr()};
-        });
-        const maxWk = Math.max(...wkData.map(w=>w.total),1);
-
-        const openAdd = () => { setEditId(null); setForm({amount:"",category:"food",note:"",date:todayStr()}); setShowModal(true); };
-        const openEdit = (e) => { setEditId(e.id); const rate=RATES[currency]||1; setForm({amount:String(Math.round(e.amount*rate)),category:e.category,note:e.note,date:e.date}); setShowModal(true); };
-        const saveExp = () => {
-          if(!form.amount||isNaN(+form.amount)||+form.amount<=0) return;
-          const rate = RATES[currency]||1;
-          const amtInRub = +form.amount / rate;
-          if(editId){setExpenses(p=>p.map(e=>e.id===editId?{...e,...form,amount:amtInRub}:e));showT(T.updated);}
-          else{setExpenses(p=>[...p,{id:nextId.current++,...form,amount:amtInRub}]);showT(T.added);}
-          setShowModal(false);
-        };
-        const delExp = (id) => { setExpenses(p=>p.filter(e=>e.id!==id)); showT(T.deleted,"error"); };
-
-        const openAddGoal = () => { setEditGoalId(null); setGoalForm({name:"",target:"",saved:"",color:"#4ECDC4",icon:"🎯"}); setShowGoalModal(true); };
-        const openEditGoal = (g) => { setEditGoalId(g.id); const rate=RATES[currency]||1; setGoalForm({name:g.name,target:String(Math.round(g.target*rate)),saved:String(Math.round(g.saved*rate)),color:g.color,icon:g.icon}); setShowGoalModal(true); };
-        const saveGoal = () => {
-          if(!goalForm.name||+goalForm.target<=0) return;
-          const rate=RATES[currency]||1;
-          const tgt=+goalForm.target/rate; const sav=(+goalForm.saved||0)/rate;
-          if(editGoalId){setGoals(p=>p.map(g=>g.id===editGoalId?{...g,...goalForm,target:tgt,saved:sav}:g));}
-          else{setGoals(p=>[...p,{id:nextGid.current++,...goalForm,target:tgt,saved:sav}]);showT(T.gAdded);}
-          setShowGoalModal(false);
-        };
-        const delGoal = (id) => { setGoals(p=>p.filter(g=>g.id!==id)); showT(T.gDel,"error"); };
-        const doDeposit = () => {
-          const amt=+depositForm.amount; if(!amt||amt<=0) return;
-          const rate=RATES[currency]||1;
-          const amtInRub=amt/rate;
-          setGoals(p=>p.map(g=>g.id!==showDeposit?g:{...g,saved:depositForm.isWithdraw?Math.max(0,g.saved-amtInRub):g.saved+amtInRub}));
-          showT(depositForm.isWithdraw?T.wDone:T.depDone);
-          setShowDeposit(null); setDepositForm({amount:"",isWithdraw:false});
-        };
-        const saveProfile = () => {
-          if(!profForm.name.trim()) return;
-          saveUser(userKey, {name: profForm.name.trim()});
-          setUserData(p=>({...p,name:profForm.name.trim()}));
-          showT(T.profSaved); setShowProfile(false);
-        };
-
-        const userName = userData.name||userKey;
-        const av = getAvatarColor(userName);
-
-        // Упрощенный рендер для экономии места
-        return React.createElement("div", { style: {minHeight:"100vh",background:CT.bg,color:"#F0EEE8",fontFamily:"'Outfit','Segoe UI',sans-serif",
-          display:"flex",flexDirection:"column",width:"100%",maxWidth:430,margin:"0 auto",position:"relative",overflowX:"hidden"} },
-          
-          React.createElement("div", { style: {padding:"50px 20px 17px",background:`linear-gradient(180deg,${CT.card} 0%,${CT.bg} 100%)`,borderBottom:"1px solid rgba(255,255,255,.06)"} },
-            React.createElement("div", { style: {display:"flex",justifyContent:"space-between",alignItems:"center"} },
-              React.createElement("div", null,
-                React.createElement("div", { style: {fontSize:11,color:"#666",fontWeight:500,letterSpacing:1,textTransform:"uppercase"} },
-                  new Date().toLocaleDateString(lang==="ru"?"ru-RU":"en-US",{weekday:"long",day:"numeric",month:"long"})),
-                React.createElement("div", { style: {fontSize:21,fontWeight:800,marginTop:3,letterSpacing:-.5} },
-                  page==="dashboard"?T.dashboard:page==="expenses"?T.expenses:page==="analytics"?T.analytics:page==="piggy"?T.piggy:T.settings)
-              ),
-              React.createElement("div", { style: {display:"flex",alignItems:"center",gap:9} },
-                page!=="settings"&&page!=="piggy" && React.createElement("button", { className: "tap", onClick: openAdd, style: {width:40,height:40,borderRadius:13,border:"none",background:"linear-gradient(135deg,#7B2FBE,#9D4EDD)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,cursor:"pointer",boxShadow:"0 4px 18px rgba(123,47,190,.5)"} }, "+"),
-                React.createElement("div", { className: "tap", onClick: () => setPage("settings"), style: {width:40,height:40,borderRadius:13,background:av,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:"#fff",cursor:"pointer",boxShadow:`0 4px 14px ${av}55`,border:page==="settings"?"3px solid #fff":"3px solid transparent",transition:"border .2s"} }, getInitials(userName))
-              )
-            )
-          ),
-
-          React.createElement("div", { style: {flex:1,overflowY:"auto",paddingBottom:84}, key: page, className: "pEnter" },
-            page === "dashboard" && React.createElement("div", { style: {padding:"17px 15px"} },
-              React.createElement("div", { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:11,marginBottom:17} },
-                React.createElement("div", { style: {background:"linear-gradient(135deg,#11998E,#38EF7D)",borderRadius:19,padding:"17px 15px",boxShadow:"0 8px 28px rgba(17,153,142,.35)"} },
-                  React.createElement("div", { style: {fontSize:10,fontWeight:600,opacity:.85,letterSpacing:.8,textTransform:"uppercase"} }, T.today),
-                  React.createElement("div", { style: {fontSize:23,fontWeight:800,marginTop:5,letterSpacing:-1} }, M(totToday)),
-                  React.createElement("div", { style: {fontSize:11,opacity:.75,marginTop:3} }, expenses.filter(e=>e.date===todayStr()).length, " ", T.ops)
-                ),
-                React.createElement("div", { style: {background:`linear-gradient(135deg,${CT.card},${CT.bg}cc)`,borderRadius:19,padding:"17px 15px",border:"1px solid rgba(255,255,255,.08)"} },
-                  React.createElement("div", { style: {fontSize:10,fontWeight:600,color:"#888",letterSpacing:.8,textTransform:"uppercase"} }, T.total),
-                  React.createElement("div", { style: {fontSize:23,fontWeight:800,marginTop:5,letterSpacing:-1,color:"#C3A6FF"} }, M(totAll)),
-                  React.createElement("div", { style: {fontSize:11,color:"#888",marginTop:3} }, expenses.length, " ", T.ops)
-                )
-              ),
-              expenses.length === 0 && React.createElement("div", { style: {textAlign:"center",color:"#555",marginTop:40} }, React.createElement("div", { style: {fontSize:44,marginBottom:9} }, "💸"), "Нет расходов. Нажмите + чтобы добавить")
-            ),
-            page === "expenses" && React.createElement("div", { style: {padding:"17px 15px"} },
-              React.createElement("div", { style: {display:"flex",gap:7,overflowX:"auto",paddingBottom:4,marginBottom:13} },
-                [{id:"all",label:lang==="ru"?"Все":"All",icon:"✦",color:"#FF6B6B"},...CATEGORIES].map(cat =>
-                  React.createElement("div", { key: cat.id, className: "chip tap", onClick: () => setFilterCat(cat.id), style: {padding:"6px 13px",borderRadius:50,fontSize:12,fontWeight:600,whiteSpace:"nowrap",flexShrink:0,background:filterCat===cat.id?cat.color:"rgba(255,255,255,.07)",color:filterCat===cat.id?"#fff":"#888",border:`1.5px solid ${filterCat===cat.id?cat.color:"transparent"}`} },
-                    cat.icon, " ", cat.label
-                  )
-                )
-              ),
-              sortedE.length === 0 && React.createElement("div", { style: {textAlign:"center",color:"#555",marginTop:60} }, React.createElement("div", { style: {fontSize:38,marginBottom:9} }, "🧾"), T.noExp),
-              sortedE.map(exp => {
-                const cat = getCat(exp.category);
-                return React.createElement("div", { key: exp.id, className: "eRow", style: {display:"flex",alignItems:"center",gap:11,padding:"11px",borderRadius:15,marginBottom:7,background:CT.card,border:"1px solid rgba(255,255,255,.05)"} },
-                  React.createElement("div", { style: {width:41,height:41,borderRadius:12,background:cat.color+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0} }, cat.icon),
-                  React.createElement("div", { style: {flex:1} },
-                    React.createElement("div", { style: {fontSize:13,fontWeight:600} }, exp.note||cat.label),
-                    React.createElement("div", { style: {fontSize:11,color:"#555",marginTop:2,display:"flex",gap:7} }, React.createElement("span", null, exp.date), React.createElement("span", { style: {color:cat.color+"cc"} }, "• ", cat.label))
-                  ),
-                  React.createElement("div", { style: {textAlign:"right"} },
-                    React.createElement("div", { style: {fontSize:15,fontWeight:800,color:cat.color} }, "−", M(exp.amount)),
-                    React.createElement("div", { style: {display:"flex",gap:5,marginTop:4,justifyContent:"flex-end"} },
-                      React.createElement("button", { className: "tap", onClick: () => openEdit(exp), style: {background:"rgba(255,255,255,.08)",border:"none",borderRadius:7,padding:"3px 7px",fontSize:11,color:"#aaa",cursor:"pointer"} }, "✏️"),
-                      React.createElement("button", { className: "tap", onClick: () => delExp(exp.id), style: {background:"rgba(255,107,107,.12)",border:"none",borderRadius:7,padding:"3px 7px",fontSize:11,color:"#FF6B6B",cursor:"pointer"} }, "🗑")
-                    )
-                  )
-                );
-              })
-            ),
-            page === "settings" && React.createElement("div", { style: {padding:"17px 15px"} },
-              React.createElement("div", { style: {background:`linear-gradient(135deg,${av}22,${av}08)`,borderRadius:21,padding:"19px",border:`1.5px solid ${av}33`,marginBottom:21,display:"flex",alignItems:"center",gap:15} },
-                React.createElement("div", { style: {width:60,height:60,borderRadius:18,background:av,display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,fontWeight:800,color:"#fff",boxShadow:`0 6px 20px ${av}55`,flexShrink:0} }, getInitials(userName)),
-                React.createElement("div", { style: {flex:1,minWidth:0} },
-                  React.createElement("div", { style: {fontSize:16,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"} }, userName),
-                  React.createElement("div", { style: {fontSize:12,color:"#666",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"} }, userKey),
-                  React.createElement("div", { style: {fontSize:11,color:av,marginTop:5,fontWeight:600} }, "● ", T.myAcc)
-                ),
-                React.createElement("button", { className: "tap", onClick: () => { setProfForm({name:userData.name||""}); setShowProfile(true); }, style: {background:"rgba(255,255,255,.08)",border:"none",borderRadius:11,padding:"8px 11px",fontSize:12,color:"#aaa",cursor:"pointer",fontFamily:"inherit",fontWeight:600} }, "✏️")
-              ),
-              React.createElement("button", { className: "tap", onClick: () => setShowLogout(true), style: {width:"100%",padding:"14px",border:"1.5px solid rgba(255,107,107,.3)",borderRadius:17,cursor:"pointer",background:"rgba(255,107,107,.08)",color:"#FF6B6B",fontSize:14,fontWeight:700,fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:17} },
-                "🚪 ", T.logout
-              )
-            )
-          ),
-
-          React.createElement("div", { style: {position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(12,12,18,.97)",backdropFilter:"blur(20px)",borderTop:"1px solid rgba(255,255,255,.07)",display:"flex",padding:"8px 0 21px"} },
-            [{id:"dashboard",label:T.dashboard,icon:"⊞"},{id:"expenses",label:T.expenses,icon:"≡"},{id:"analytics",label:T.analytics,icon:"◎"},{id:"piggy",label:T.piggy,icon:"🐷"},{id:"settings",label:T.settings,icon:"⚙"}].map(tab =>
-              React.createElement("div", { key: tab.id, className: "nav tap", onClick: () => setPage(tab.id), style: {flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,opacity:page===tab.id?1:.36} },
-                React.createElement("div", { style: {width:41,height:29,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",background:page===tab.id?"rgba(255,107,107,.15)":"transparent",fontSize:16,transition:"all .2s"} }, tab.icon),
-                React.createElement("div", { style: {fontSize:10,fontWeight:page===tab.id?700:400,color:page===tab.id?"#FF6B6B":"inherit"} }, tab.label)
-              )
-            )
-          ),
-
-          showModal && React.createElement("div", { style: {position:"fixed",inset:0,background:"rgba(0,0,0,.72)",display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(6px)"}, onClick: e => e.target===e.currentTarget && setShowModal(false) },
-            React.createElement("div", { className: "mEnter", style: {width:"100%",maxWidth:430,margin:"0 auto",background:"#1E1E2E",borderRadius:"23px 23px 0 0",padding:"21px 19px 36px",border:"1px solid rgba(255,255,255,.1)"} },
-              React.createElement("div", { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:19} },
-                React.createElement("div", { style: {fontSize:16,fontWeight:800} }, editId?T.editE:T.newE),
-                React.createElement("button", { onClick: () => setShowModal(false), style: {background:"rgba(255,255,255,.08)",border:"none",borderRadius:9,width:29,height:29,cursor:"pointer",color:"#fff",fontSize:15} }, "×")
-              ),
-              React.createElement("div", { style: {background:"rgba(255,255,255,.05)",borderRadius:14,padding:"13px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.08)"} },
-                React.createElement("div", { style: {fontSize:10,color:"#666",marginBottom:4,fontWeight:700,letterSpacing:.8} }, T.amL),
-                React.createElement("div", { style: {display:"flex",alignItems:"center",gap:7} },
-                  React.createElement("input", { type: "number", value: form.amount, onChange: e => setForm(f=>({...f,amount:e.target.value})), placeholder: "0", style: {flex:1,fontSize:27,fontWeight:800,color:"#FF6B6B",letterSpacing:-1} }),
-                  React.createElement("span", { style: {fontSize:19,color:"#555"} }, CSym)
-                )
-              ),
-              React.createElement("button", { className: "tap", onClick: saveExp, style: {width:"100%",padding:"14px",border:"none",borderRadius:14,cursor:"pointer",background:form.amount&&+form.amount>0?"linear-gradient(135deg,#FF6B6B,#FF8E53)":"rgba(255,255,255,.08)",color:form.amount&&+form.amount>0?"#fff":"#555",fontSize:15,fontWeight:800,fontFamily:"inherit"} }, editId?T.saveC:T.addE)
-            )
-          ),
-
-          showLogout && React.createElement("div", { style: {position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:170,padding:20}, onClick: e => e.target===e.currentTarget && setShowLogout(false) },
-            React.createElement("div", { className: "mEnter", style: {background:CT.card,borderRadius:23,padding:"26px 21px",border:"1px solid rgba(255,255,255,.1)",maxWidth:310,width:"100%",textAlign:"center"} },
-              React.createElement("div", { style: {fontSize:36,marginBottom:11} }, "🚪"),
-              React.createElement("div", { style: {fontSize:15,fontWeight:800,marginBottom:7} }, T.logout),
-              React.createElement("div", { style: {fontSize:13,color:"#888",marginBottom:21} }, T.logoutQ),
-              React.createElement("div", { style: {display:"flex",gap:9} },
-                React.createElement("button", { className: "tap", onClick: () => setShowLogout(false), style: {flex:1,padding:"11px",background:"rgba(255,255,255,.08)",border:"none",borderRadius:12,color:"#fff",fontSize:13,fontWeight:600,fontFamily:"inherit",cursor:"pointer"} }, T.cancel),
-                React.createElement("button", { className: "tap", onClick: () => { setShowLogout(false); onLogout(); }, style: {flex:1,padding:"11px",background:"linear-gradient(135deg,#FF6B6B,#FF4444)",border:"none",borderRadius:12,color:"#fff",fontSize:13,fontWeight:800,fontFamily:"inherit",cursor:"pointer"} }, T.logoutY)
-              )
-            )
-          ),
-
-          toast && React.createElement("div", { className: "tAnim", style: {position:"fixed",top:56,right:13,zIndex:300,background:toast.type==="error"?"#FF6B6B":"#4ECDC4",color:"#fff",padding:"8px 15px",borderRadius:12,fontSize:13,fontWeight:700,boxShadow:"0 8px 22px rgba(0,0,0,.3)"} }, toast.msg)
-        );
-      }
-
-      // App Component
-      function App() {
-        const [userKey, setUserKey] = useState(() => lsGet("dayspent_session") || null);
-        const [userData, setUserData] = useState(() => lsGet("dayspent_userdata") || null);
-        const [loading, setLoading] = useState(false);
-
-        useEffect(() => {
-          const sk = lsGet("dayspent_session");
-          if (sk) {
-            const acc = getUser(sk);
-            if (acc) {
-              setUserData(acc);
-              lsSet("dayspent_userdata", acc);
+            const user = createUser(email, password, name);
+            if (!user) {
+              setError("Email уже зарегистрирован");
             } else {
-              lsSet("dayspent_session", null);
-              lsSet("dayspent_userdata", null);
-              setUserKey(null);
-              setUserData(null);
+              localStorage.setItem("dayspent_session", user.email);
+              onLogin(user.email, user);
             }
           }
-        }, []);
+          setLoading(false);
+        }, 500);
+      };
 
-        const handleLogin = (key, acc) => {
-          setUserKey(key);
-          setUserData(acc);
-          lsSet("dayspent_session", key);
-          lsSet("dayspent_userdata", acc);
+      return (
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0F0F13", padding: "20px" }}>
+          <div style={{ background: "#1A1A24", borderRadius: "24px", padding: "32px", width: "100%", maxWidth: "400px" }}>
+            <div style={{ textAlign: "center", marginBottom: "32px" }}>
+              <div style={{ fontSize: "48px", marginBottom: "8px" }}>💸</div>
+              <h1 style={{ color: "#fff", fontSize: "28px" }}>DaySpent</h1>
+              <p style={{ color: "#888", marginTop: "8px" }}>Управляй своими финансами</p>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              {!isLogin && (
+                <input
+                  type="text"
+                  placeholder="Имя"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  style={{ width: "100%", padding: "12px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px" }}
+                />
+              )}
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={{ width: "100%", padding: "12px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px" }}
+              />
+              <input
+                type="password"
+                placeholder="Пароль"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{ width: "100%", padding: "12px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px" }}
+              />
+              {!isLogin && (
+                <input
+                  type="password"
+                  placeholder="Подтвердите пароль"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  style={{ width: "100%", padding: "12px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px" }}
+                />
+              )}
+              
+              {error && (
+                <div style={{ background: "rgba(255,107,107,0.1)", color: "#FF6B6B", padding: "12px", borderRadius: "12px", marginBottom: "12px", fontSize: "14px" }}>
+                  ⚠️ {error}
+                </div>
+              )}
+              
+              <button
+                type="submit"
+                disabled={loading}
+                style={{ width: "100%", padding: "14px", background: "linear-gradient(135deg,#FF6B6B,#FF8E53)", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px", fontWeight: "bold", cursor: "pointer", opacity: loading ? 0.7 : 1 }}
+              >
+                {loading ? "Загрузка..." : (isLogin ? "Войти" : "Зарегистрироваться")}
+              </button>
+            </form>
+
+            <div style={{ textAlign: "center", marginTop: "20px" }}>
+              <button
+                onClick={() => { setIsLogin(!isLogin); setError(""); }}
+                style={{ background: "none", border: "none", color: "#FF6B6B", cursor: "pointer", fontSize: "14px" }}
+              >
+                {isLogin ? "Создать аккаунт" : "Уже есть аккаунт? Войти"}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Главное приложение
+    function MainApp({ userKey, userData, setUserData, onLogout }) {
+      const [page, setPage] = useState("dashboard");
+      const [expenses, setExpenses] = useState(userData.expenses || []);
+      const [showModal, setShowModal] = useState(false);
+      const [formAmount, setFormAmount] = useState("");
+      const [formCategory, setFormCategory] = useState("food");
+      const [formNote, setFormNote] = useState("");
+      const [currency, setCurrency] = useState(userData.settings?.currency || "RUB");
+      const [toast, setToast] = useState(null);
+      const nextId = useRef(expenses.length + 1);
+
+      const showToast = (msg) => {
+        setToast(msg);
+        setTimeout(() => setToast(null), 2000);
+      };
+
+      const addExpense = () => {
+        if (!formAmount || parseFloat(formAmount) <= 0) return;
+        
+        const newExpense = {
+          id: nextId.current++,
+          amount: parseFloat(formAmount),
+          category: formCategory,
+          note: formNote || CATEGORIES.find(c => c.id === formCategory).label,
+          date: todayStr()
         };
+        
+        const newExpenses = [...expenses, newExpense];
+        setExpenses(newExpenses);
+        
+        const updatedData = { ...userData, expenses: newExpenses };
+        setUserData(updatedData);
+        updateUser(userKey, { expenses: newExpenses });
+        
+        setShowModal(false);
+        setFormAmount("");
+        setFormNote("");
+        showToast("✅ Расход добавлен");
+      };
 
-        const handleLogout = () => {
-          lsSet("dayspent_session", null);
-          lsSet("dayspent_userdata", null);
-          setUserKey(null);
-          setUserData(null);
-        };
+      const deleteExpense = (id) => {
+        const newExpenses = expenses.filter(e => e.id !== id);
+        setExpenses(newExpenses);
+        setUserData({ ...userData, expenses: newExpenses });
+        updateUser(userKey, { expenses: newExpenses });
+        showToast("🗑️ Расход удален");
+      };
 
-        if (loading) {
-          return React.createElement("div", { style: {width:"100vw",minHeight:"100vh",background:"#0F0F13",display:"flex",alignItems:"center",justifyContent:"center"} },
-            React.createElement("div", { style: {fontSize:32} }, "⏳")
-          );
+      const totalToday = expenses.filter(e => e.date === todayStr()).reduce((sum, e) => sum + e.amount, 0);
+      const totalAll = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+      const getCategory = (id) => CATEGORIES.find(c => c.id === id) || CATEGORIES[6];
+
+      return (
+        <div style={{ maxWidth: "430px", margin: "0 auto", background: "#0F0F13", minHeight: "100vh", color: "#fff" }}>
+          {/* Header */}
+          <div style={{ padding: "20px", background: "linear-gradient(135deg, #1A1A24, #0F0F13)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: "12px", color: "#888" }}>{new Date().toLocaleDateString()}</div>
+                <h2 style={{ marginTop: "4px" }}>
+                  {page === "dashboard" && "Обзор"}
+                  {page === "expenses" && "Расходы"}
+                  {page === "settings" && "Настройки"}
+                </h2>
+              </div>
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                {page !== "settings" && (
+                  <button onClick={() => setShowModal(true)} style={{ background: "#FF6B6B", border: "none", width: "40px", height: "40px", borderRadius: "12px", fontSize: "20px", cursor: "pointer" }}>+</button>
+                )}
+                <div onClick={() => setPage("settings")} style={{ width: "40px", height: "40px", borderRadius: "12px", background: "#4ECDC4", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", cursor: "pointer" }}>
+                  {getInitials(userData.name)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div style={{ padding: "20px" }}>
+            {page === "dashboard" && (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
+                  <div style={{ background: "linear-gradient(135deg,#11998E,#38EF7D)", padding: "16px", borderRadius: "16px" }}>
+                    <div style={{ fontSize: "12px", opacity: 0.8 }}>Сегодня</div>
+                    <div style={{ fontSize: "24px", fontWeight: "bold", marginTop: "8px" }}>{fmtMoney(totalToday, currency)}</div>
+                  </div>
+                  <div style={{ background: "#1A1A24", padding: "16px", borderRadius: "16px" }}>
+                    <div style={{ fontSize: "12px", color: "#888" }}>Всего</div>
+                    <div style={{ fontSize: "24px", fontWeight: "bold", marginTop: "8px", color: "#C3A6FF" }}>{fmtMoney(totalAll, currency)}</div>
+                  </div>
+                </div>
+
+                {expenses.length === 0 && (
+                  <div style={{ textAlign: "center", padding: "40px", color: "#888" }}>
+                    <div style={{ fontSize: "48px", marginBottom: "12px" }}>💸</div>
+                    <p>Нет расходов</p>
+                    <p style={{ fontSize: "12px", marginTop: "8px" }}>Нажмите + чтобы добавить</p>
+                  </div>
+                )}
+
+                {expenses.slice(-5).reverse().map(exp => {
+                  const cat = getCategory(exp.category);
+                  return (
+                    <div key={exp.id} style={{ background: "#1A1A24", padding: "12px", borderRadius: "12px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div style={{ fontSize: "24px" }}>{cat.label.split(" ")[0]}</div>
+                        <div>
+                          <div style={{ fontWeight: "bold" }}>{exp.note}</div>
+                          <div style={{ fontSize: "11px", color: "#888" }}>{exp.date}</div>
+                        </div>
+                      </div>
+                      <div style={{ color: cat.color, fontWeight: "bold" }}>-{fmtMoney(exp.amount, currency)}</div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {page === "expenses" && (
+              <>
+                {expenses.length === 0 && (
+                  <div style={{ textAlign: "center", padding: "40px", color: "#888" }}>
+                    <div style={{ fontSize: "48px", marginBottom: "12px" }}>📝</div>
+                    <p>Нет расходов</p>
+                  </div>
+                )}
+                {[...expenses].reverse().map(exp => {
+                  const cat = getCategory(exp.category);
+                  return (
+                    <div key={exp.id} style={{ background: "#1A1A24", padding: "12px", borderRadius: "12px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div style={{ fontSize: "24px" }}>{cat.label.split(" ")[0]}</div>
+                        <div>
+                          <div style={{ fontWeight: "bold" }}>{exp.note}</div>
+                          <div style={{ fontSize: "11px", color: "#888" }}>{exp.date}</div>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div style={{ color: cat.color, fontWeight: "bold" }}>-{fmtMoney(exp.amount, currency)}</div>
+                        <button onClick={() => deleteExpense(exp.id)} style={{ background: "rgba(255,107,107,0.2)", border: "none", padding: "6px 10px", borderRadius: "8px", cursor: "pointer" }}>🗑️</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {page === "settings" && (
+              <>
+                <div style={{ background: "#1A1A24", padding: "20px", borderRadius: "16px", marginBottom: "20px", textAlign: "center" }}>
+                  <div style={{ width: "60px", height: "60px", borderRadius: "20px", background: "#4ECDC4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", margin: "0 auto 12px" }}>
+                    {getInitials(userData.name)}
+                  </div>
+                  <h3>{userData.name}</h3>
+                  <p style={{ color: "#888", fontSize: "12px", marginTop: "4px" }}>{userData.email}</p>
+                </div>
+
+                <div style={{ background: "#1A1A24", padding: "16px", borderRadius: "16px", marginBottom: "12px" }}>
+                  <div style={{ marginBottom: "12px", color: "#888", fontSize: "12px" }}>ВАЛЮТА</div>
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    {CURRENCIES.map(c => (
+                      <button
+                        key={c.id}
+                        onClick={() => { setCurrency(c.id); updateUser(userKey, { settings: { ...userData.settings, currency: c.id } }); }}
+                        style={{ flex: 1, padding: "12px", background: currency === c.id ? "#FF6B6B" : "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", cursor: "pointer" }}
+                      >
+                        {c.flag} {c.symbol}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => { localStorage.removeItem("dayspent_session"); onLogout(); }}
+                  style={{ width: "100%", padding: "14px", background: "rgba(255,107,107,0.2)", border: "1px solid #FF6B6B", borderRadius: "12px", color: "#FF6B6B", cursor: "pointer", marginTop: "20px" }}
+                >
+                  🚪 Выйти из аккаунта
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Bottom Navigation */}
+          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, maxWidth: "430px", margin: "0 auto", background: "#1A1A24", display: "flex", padding: "12px 20px", borderTop: "1px solid #2A2A35" }}>
+            {[
+              { id: "dashboard", label: "Обзор", icon: "📊" },
+              { id: "expenses", label: "Расходы", icon: "💳" },
+              { id: "settings", label: "Настройки", icon: "⚙️" },
+            ].map(tab => (
+              <div key={tab.id} onClick={() => setPage(tab.id)} className="tap" style={{ flex: 1, textAlign: "center", opacity: page === tab.id ? 1 : 0.5 }}>
+                <div style={{ fontSize: "24px" }}>{tab.icon}</div>
+                <div style={{ fontSize: "11px", marginTop: "4px" }}>{tab.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Add Expense Modal */}
+          {showModal && (
+            <div onClick={() => setShowModal(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "flex-end", zIndex: 1000 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: "#1A1A24", width: "100%", maxWidth: "430px", margin: "0 auto", borderRadius: "24px 24px 0 0", padding: "24px" }}>
+                <h3 style={{ marginBottom: "20px" }}>Новый расход</h3>
+                
+                <input
+                  type="number"
+                  placeholder="Сумма"
+                  value={formAmount}
+                  onChange={e => setFormAmount(e.target.value)}
+                  style={{ width: "100%", padding: "14px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", fontSize: "18px" }}
+                />
+                
+                <select
+                  value={formCategory}
+                  onChange={e => setFormCategory(e.target.value)}
+                  style={{ width: "100%", padding: "14px", marginBottom: "12px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff" }}
+                >
+                  {CATEGORIES.map(c => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
+                  ))}
+                </select>
+                
+                <input
+                  type="text"
+                  placeholder="Описание (необязательно)"
+                  value={formNote}
+                  onChange={e => setFormNote(e.target.value)}
+                  style={{ width: "100%", padding: "14px", marginBottom: "20px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff" }}
+                />
+                
+                <div style={{ display: "flex", gap: "12px" }}>
+                  <button onClick={() => setShowModal(false)} style={{ flex: 1, padding: "14px", background: "#2A2A35", border: "none", borderRadius: "12px", color: "#fff", cursor: "pointer" }}>Отмена</button>
+                  <button onClick={addExpense} style={{ flex: 2, padding: "14px", background: "linear-gradient(135deg,#FF6B6B,#FF8E53)", border: "none", borderRadius: "12px", color: "#fff", fontWeight: "bold", cursor: "pointer" }}>Добавить</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Toast */}
+          {toast && (
+            <div style={{ position: "fixed", bottom: "80px", left: "50%", transform: "translateX(-50%)", background: "#4ECDC4", color: "#fff", padding: "10px 20px", borderRadius: "20px", fontSize: "14px", zIndex: 1001 }}>
+              {toast}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Корневой компонент
+    function App() {
+      const [userKey, setUserKey] = useState(() => localStorage.getItem("dayspent_session"));
+      const [userData, setUserData] = useState(null);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        if (userKey) {
+          const user = getUser(userKey);
+          if (user) {
+            setUserData(user);
+          } else {
+            localStorage.removeItem("dayspent_session");
+            setUserKey(null);
+          }
         }
+        setLoading(false);
+      }, []);
 
-        return React.createElement("div", { style: {width:"100vw",minHeight:"100vh",overflowX:"hidden"} },
-          !userKey
-            ? React.createElement(AuthScreen, { onLogin: handleLogin })
-            : React.createElement(MainApp, { key: userKey, userKey: userKey, userData: userData, setUserData: setUserData, onLogout: handleLogout })
-        );
+      if (loading) {
+        return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: "#0F0F13", color: "#fff" }}>Загрузка...</div>;
       }
 
-      const root = ReactDOM.createRoot(document.getElementById('root'));
-      root.render(React.createElement(App, null));
-    })();
+      if (!userKey || !userData) {
+        return <AuthScreen onLogin={(key, data) => { setUserKey(key); setUserData(data); }} />;
+      }
+
+      return <MainApp userKey={userKey} userData={userData} setUserData={setUserData} onLogout={() => { setUserKey(null); setUserData(null); }} />;
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
   </script>
 </body>
 </html>
