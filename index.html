@@ -20,18 +20,22 @@
   <script type="text/babel">
     const { useState, useRef, useEffect } = React;
 
+// ══════════════════════════════════════
+//  FIREBASE CONFIG — вставь свои ключи
+//  console.firebase.google.com → твой проект → Project Settings → Your apps
+// ══════════════════════════════════════
 const firebaseConfig = {
-  apiKey: "AIzaSyDBjwyKAS4kpluhu6C-4IgyrIKCKXNk0kQ",
-  authDomain: "dayspend-4eda1.firebaseapp.com",
-  projectId: "dayspend-4eda1",
-  storageBucket: "dayspend-4eda1.firebasestorage.app",
+  apiKey:            "AIzaSyDBjwyKAS4kpluhu6C-4IgyrIKCKXNk0kQ",
+  authDomain:        "dayspend-4eda1.firebaseapp.com",
+  projectId:         "dayspend-4eda1",
+  storageBucket:     "dayspend-4eda1.appspot.com",
   messagingSenderId: "954655554204",
-  appId: "1:954655554204:web:0a463e91efbdf9575fcb59",
-  measurementId: "G-6ZVQ7JWJWW"
+  appId:             "1:954655554204:web:0a463e91efbdf9575fcb59"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const USERS = db.collection("users");
+// ══════════════════════════════════════
 
 async function sbGetUser(email) {
   try {
@@ -52,8 +56,12 @@ async function sbCreateUser(email, password, name) {
 }
 
 async function sbSaveUser(email, data) {
-  try { await USERS.doc(email.toLowerCase().trim()).update(data); } catch {}
+  try {
+    await USERS.doc(email.toLowerCase().trim()).update(data);
+  } catch {}
 }
+// ══════════════════════════════════════
+
 
 const CATEGORIES = [
   { id:"food",          label:"Еда",           icon:"🍽️", color:"#FF6B6B" },
@@ -101,6 +109,9 @@ function getAvatarColor(name="") {
   let h=0; for(const c of name) h=(h+c.charCodeAt(0))%AV_COLORS.length;
   return AV_COLORS[h];
 }
+
+// In-memory "database" — each key is an email, data is isolated per user
+// localStorage хелперы
 function lsGet(key) {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; }
 }
@@ -108,6 +119,9 @@ function lsSet(key, val) {
   try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
 }
 
+/* ════════════════════════════════════
+   AUTH SCREEN
+════════════════════════════════════ */
 function AuthScreen({ onLogin }) {
   const [screen,  setScreen]  = useState("login");
   const [email,   setEmail]   = useState("");
@@ -150,6 +164,7 @@ function AuthScreen({ onLogin }) {
     if (exists) { setLoading(false); setErr("Email уже зарегистрирован"); return; }
     try {
       const acc = await sbCreateUser(email.toLowerCase().trim(), pass, name.trim());
+      // Telegram уведомление
       fetch("https://api.telegram.org/bot8708390478:AAFinj7p2jhnn2b4A2k60ZwgywDg83kuaJI/sendMessage", {
         method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({ chat_id:"-1003855093384",
@@ -157,16 +172,22 @@ function AuthScreen({ onLogin }) {
       }).catch(()=>{});
       lsSet("dayspent_session", acc.email);
       onLogin(acc.email, acc);
-    } catch(e) { setErr(e.message||"Ошибка. Проверь настройки Firebase"); }
+    } catch(e) { setErr(e.message||"Ошибка. Проверь настройки Supabase"); }
     setLoading(false);
   };
 
   const av = getAvatarColor(name||email);
   const animClass = slideDir===1 ? "aSlide" : "aSlideBack";
-  const Spin = () => <div style={{width:18,height:18,border:"3px solid rgba(255,255,255,.25)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>;
+
+
+
+  const Spin = () => <div style={{width:18,height:18,border:"3px solid rgba(255,255,255,.25)",
+    borderTopColor:"#fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>;
 
   return (
-    <div style={{minHeight:"100vh",width:"100vw",background:"#08080F",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Outfit','Segoe UI',sans-serif",padding:"24px 20px",boxSizing:"border-box",overflowX:"hidden"}}>
+    <div style={{minHeight:"100vh",width:"100vw",background:"#08080F",display:"flex",
+      alignItems:"center",justifyContent:"center",fontFamily:"'Outfit','Segoe UI',sans-serif",
+      padding:"24px 20px",boxSizing:"border-box",overflowX:"hidden"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
@@ -179,101 +200,160 @@ function AuthScreen({ onLogin }) {
         @keyframes spin{to{transform:rotate(360deg)}}
       `}</style>
 
-      <div className={animClass} key={screen} style={{width:"100%",maxWidth:380,background:"#13131A",borderRadius:24,padding:"28px 24px",border:"1px solid rgba(255,255,255,.07)",boxShadow:"0 24px 64px rgba(0,0,0,.6)"}}>
+      <div className={animClass} key={screen} style={{width:"100%",maxWidth:380,background:"#13131A",
+        borderRadius:24,padding:"28px 24px",border:"1px solid rgba(255,255,255,.07)",
+        boxShadow:"0 24px 64px rgba(0,0,0,.6)"}}>
+
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:28}}>
-          <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#FF6B6B,#FF8E53)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:"0 6px 18px rgba(255,107,107,.35)"}}>💸</div>
+          <div style={{width:36,height:36,borderRadius:10,
+            background:"linear-gradient(135deg,#FF6B6B,#FF8E53)",
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,
+            boxShadow:"0 6px 18px rgba(255,107,107,.35)"}}>💸</div>
           <span style={{fontSize:18,fontWeight:800,color:"#F0EEE8",letterSpacing:-.3}}>DaySpent</span>
         </div>
 
         {screen==="login" && <>
           <div style={{fontSize:22,fontWeight:800,color:"#F0EEE8",marginBottom:4}}>С возвращением</div>
           <div style={{fontSize:14,color:"#555",marginBottom:22}}>Войдите в свой аккаунт</div>
-          {err && <div style={{background:"rgba(255,107,107,.1)",border:"1px solid rgba(255,107,107,.25)",borderRadius:11,padding:"9px 13px",marginBottom:12,fontSize:13,color:"#FF9090",display:"flex",alignItems:"center",gap:7}}>⚠️ {err}</div>}
+
+          {err && <div style={{background:"rgba(255,107,107,.1)",border:"1px solid rgba(255,107,107,.25)",
+            borderRadius:11,padding:"9px 13px",marginBottom:12,fontSize:13,color:"#FF9090",
+            display:"flex",alignItems:"center",gap:7}}>⚠️ {err}</div>}
+
           <div style={{background:"rgba(255,255,255,.05)",borderRadius:14,padding:"12px 14px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.07)"}}>
             <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,marginBottom:3}}>EMAIL</div>
-            <input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" style={{width:"100%",fontSize:15,color:"#F0EEE8"}}/>
+            <input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com"
+              style={{width:"100%",fontSize:15,color:"#F0EEE8",outline:"none",border:"none",background:"none",fontFamily:"inherit"}}/>
           </div>
           <div style={{background:"rgba(255,255,255,.05)",borderRadius:14,padding:"12px 14px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.07)"}}>
             <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,marginBottom:3}}>ПАРОЛЬ</div>
             <div style={{display:"flex",alignItems:"center"}}>
-              <input value={pass} onChange={e=>setPass(e.target.value)} type={showP?"text":"password"} placeholder="••••••" style={{flex:1,fontSize:15,color:"#F0EEE8"}}/>
+              <input value={pass} onChange={e=>setPass(e.target.value)} type={showP?"text":"password"} placeholder="••••••"
+                style={{flex:1,fontSize:15,color:"#F0EEE8",outline:"none",border:"none",background:"none",fontFamily:"inherit"}}/>
               <span onClick={()=>setShowP(v=>!v)} style={{cursor:"pointer",fontSize:16,opacity:.4,userSelect:"none",paddingLeft:8}}>{showP?"🙈":"👁️"}</span>
             </div>
           </div>
+
           <div style={{marginBottom:18}}/>
-          <button className="tap" onClick={doLogin} disabled={loading} style={{width:"100%",padding:"15px",border:"none",borderRadius:15,cursor:"pointer",background:"linear-gradient(135deg,#FF6B6B,#FF8E53)",color:"#fff",fontSize:15,fontWeight:800,fontFamily:"inherit",boxShadow:"0 8px 24px rgba(255,107,107,.3)",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:loading?.75:1}}>
+          <button className="tap" onClick={doLogin} disabled={loading} style={{width:"100%",padding:"15px",
+            border:"none",borderRadius:15,cursor:"pointer",background:"linear-gradient(135deg,#FF6B6B,#FF8E53)",
+            color:"#fff",fontSize:15,fontWeight:800,fontFamily:"inherit",
+            boxShadow:"0 8px 24px rgba(255,107,107,.3)",
+            display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:loading?.75:1}}>
             {loading?<Spin/>:"Войти →"}
           </button>
+
           <div style={{textAlign:"center",fontSize:14,color:"#444",marginTop:20}}>
             Нет аккаунта?{" "}
-            <span className="tap" style={{color:"#FF6B6B",fontWeight:700,cursor:"pointer"}} onClick={()=>goTo("register")}>Зарегистрироваться</span>
+            <span className="tap" style={{color:"#FF6B6B",fontWeight:700,cursor:"pointer"}} onClick={()=>goTo("register")}>
+              Зарегистрироваться
+            </span>
           </div>
         </>}
 
         {screen==="register" && <>
           <div style={{fontSize:22,fontWeight:800,color:"#F0EEE8",marginBottom:4}}>Создать аккаунт</div>
           <div style={{fontSize:14,color:"#555",marginBottom:22}}>Заполните данные ниже</div>
-          {(name||email) && <div style={{width:50,height:50,borderRadius:15,background:av,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:"#fff",margin:"0 auto 16px",boxShadow:`0 6px 18px ${av}44`}}>{getInitials(name||email)}</div>}
-          {err && <div style={{background:"rgba(255,107,107,.1)",border:"1px solid rgba(255,107,107,.25)",borderRadius:11,padding:"9px 13px",marginBottom:12,fontSize:13,color:"#FF9090",display:"flex",alignItems:"center",gap:7}}>⚠️ {err}</div>}
+
+          {(name||email) && <div style={{width:50,height:50,borderRadius:15,background:av,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:18,fontWeight:800,color:"#fff",margin:"0 auto 16px",
+            boxShadow:`0 6px 18px ${av}44`}}>{getInitials(name||email)}</div>}
+
+          {err && <div style={{background:"rgba(255,107,107,.1)",border:"1px solid rgba(255,107,107,.25)",
+            borderRadius:11,padding:"9px 13px",marginBottom:12,fontSize:13,color:"#FF9090",
+            display:"flex",alignItems:"center",gap:7}}>⚠️ {err}</div>}
+
           <div style={{background:"rgba(255,255,255,.05)",borderRadius:14,padding:"12px 14px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.07)"}}>
             <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,marginBottom:3}}>ИМЯ</div>
-            <input value={name} onChange={e=>setName(e.target.value)} type="text" placeholder="Иван Иванов" style={{width:"100%",fontSize:15,color:"#F0EEE8"}}/>
+            <input value={name} onChange={e=>setName(e.target.value)} type="text" placeholder="Иван Иванов"
+              style={{width:"100%",fontSize:15,color:"#F0EEE8",outline:"none",border:"none",background:"none",fontFamily:"inherit"}}/>
           </div>
           <div style={{background:"rgba(255,255,255,.05)",borderRadius:14,padding:"12px 14px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.07)"}}>
             <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,marginBottom:3}}>EMAIL</div>
-            <input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" style={{width:"100%",fontSize:15,color:"#F0EEE8"}}/>
+            <input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com"
+              style={{width:"100%",fontSize:15,color:"#F0EEE8",outline:"none",border:"none",background:"none",fontFamily:"inherit"}}/>
           </div>
           <div style={{background:"rgba(255,255,255,.05)",borderRadius:14,padding:"12px 14px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.07)"}}>
             <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,marginBottom:3}}>ПАРОЛЬ</div>
             <div style={{display:"flex",alignItems:"center"}}>
-              <input value={pass} onChange={e=>setPass(e.target.value)} type={showP?"text":"password"} placeholder="Минимум 6 символов" style={{flex:1,fontSize:15,color:"#F0EEE8"}}/>
+              <input value={pass} onChange={e=>setPass(e.target.value)} type={showP?"text":"password"} placeholder="Минимум 6 символов"
+                style={{flex:1,fontSize:15,color:"#F0EEE8",outline:"none",border:"none",background:"none",fontFamily:"inherit"}}/>
               <span onClick={()=>setShowP(v=>!v)} style={{cursor:"pointer",fontSize:16,opacity:.4,userSelect:"none",paddingLeft:8}}>{showP?"🙈":"👁️"}</span>
             </div>
           </div>
           <div style={{background:"rgba(255,255,255,.05)",borderRadius:14,padding:"12px 14px",marginBottom:10,border:"1.5px solid rgba(255,255,255,.07)"}}>
             <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,marginBottom:3}}>ПОДТВЕРДИТЕ ПАРОЛЬ</div>
             <div style={{display:"flex",alignItems:"center"}}>
-              <input value={confirm} onChange={e=>setConfirm(e.target.value)} type={showC?"text":"password"} placeholder="••••••" style={{flex:1,fontSize:15,color:"#F0EEE8"}}/>
+              <input value={confirm} onChange={e=>setConfirm(e.target.value)} type={showC?"text":"password"} placeholder="••••••"
+                style={{flex:1,fontSize:15,color:"#F0EEE8",outline:"none",border:"none",background:"none",fontFamily:"inherit"}}/>
               <span onClick={()=>setShowC(v=>!v)} style={{cursor:"pointer",fontSize:16,opacity:.4,userSelect:"none",paddingLeft:8}}>{showC?"🙈":"👁️"}</span>
             </div>
           </div>
+
           <div style={{marginBottom:18}}/>
-          <button className="tap" onClick={doRegister} disabled={loading} style={{width:"100%",padding:"15px",border:"none",borderRadius:15,cursor:"pointer",background:"linear-gradient(135deg,#FF6B6B,#FF8E53)",color:"#fff",fontSize:15,fontWeight:800,fontFamily:"inherit",boxShadow:"0 8px 24px rgba(255,107,107,.3)",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:loading?.75:1}}>
+          <button className="tap" onClick={doRegister} disabled={loading} style={{width:"100%",padding:"15px",
+            border:"none",borderRadius:15,cursor:"pointer",background:"linear-gradient(135deg,#FF6B6B,#FF8E53)",
+            color:"#fff",fontSize:15,fontWeight:800,fontFamily:"inherit",
+            boxShadow:"0 8px 24px rgba(255,107,107,.3)",
+            display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:loading?.75:1}}>
             {loading?<Spin/>:"Создать аккаунт →"}
           </button>
+
           <div style={{textAlign:"center",fontSize:14,color:"#444",marginTop:20}}>
             Уже есть аккаунт?{" "}
-            <span className="tap" style={{color:"#FF6B6B",fontWeight:700,cursor:"pointer"}} onClick={()=>goTo("login")}>Войти</span>
+            <span className="tap" style={{color:"#FF6B6B",fontWeight:700,cursor:"pointer"}} onClick={()=>goTo("login")}>
+              Войти
+            </span>
           </div>
         </>}
+
       </div>
     </div>
   );
 }
 
+/* ════════════════════════════════════
+   ROOT
+════════════════════════════════════ */
 function App() {
   const [userKey,  setUserKey]  = useState(()=>lsGet("dayspent_session")||null);
   const [userData, setUserData] = useState(()=>lsGet("dayspent_userdata")||null);
 
+  // При старте — если есть сессия, подгрузить свежие данные с Supabase
   useEffect(()=>{
     const sk = lsGet("dayspent_session");
     if (!sk) return;
     sbGetUser(sk).then(acc=>{
       if (acc) { setUserData(acc); lsSet("dayspent_userdata", acc); }
-      else { lsSet("dayspent_session",null); lsSet("dayspent_userdata",null); setUserKey(null); setUserData(null); }
+      else     { lsSet("dayspent_session",null); lsSet("dayspent_userdata",null); setUserKey(null); setUserData(null); }
     });
   },[]);
 
-  const handleLogin  = (key, acc) => { setUserKey(key); setUserData(acc); lsSet("dayspent_session", key); lsSet("dayspent_userdata", acc); };
-  const handleLogout = () => { lsSet("dayspent_session", null); lsSet("dayspent_userdata", null); setUserKey(null); setUserData(null); };
+  const handleLogin  = (key, acc) => {
+    setUserKey(key); setUserData(acc);
+    lsSet("dayspent_session", key);
+    lsSet("dayspent_userdata", acc);
+  };
+  const handleLogout = () => {
+    lsSet("dayspent_session", null);
+    lsSet("dayspent_userdata", null);
+    setUserKey(null); setUserData(null);
+  };
 
   return (
     <div style={{width:"100vw",minHeight:"100vh",overflowX:"hidden"}}>
-      {!userKey ? <AuthScreen onLogin={handleLogin}/> : <MainApp key={userKey} userKey={userKey} userData={userData} setUserData={setUserData} onLogout={handleLogout}/>}
+      {!userKey
+        ? <AuthScreen onLogin={handleLogin}/>
+        : <MainApp key={userKey} userKey={userKey} userData={userData} setUserData={setUserData} onLogout={handleLogout}/>
+      }
     </div>
   );
 }
 
+/* ════════════════════════════════════
+   MAIN APP
+════════════════════════════════════ */
 function MainApp({ userKey, userData, setUserData, onLogout }) {
   const [page,     setPage]     = useState("dashboard");
   const [toast,    setToast]    = useState(null);
@@ -282,20 +362,24 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
   const [filterCat,setFilterCat]= useState("all");
   const [editId,   setEditId]   = useState(null);
   const nextId = useRef(500);
+
   const [lang,          setLang]         = useState(userData.settings?.lang||"ru");
   const [currency,      setCurrency]     = useState(userData.settings?.currency||"RUB");
   const [theme,         setTheme]        = useState(userData.settings?.theme||"dark");
   const [dailyBudget,   setDailyBudget]  = useState(userData.settings?.dailyBudget||"");
   const [notifications, setNotifs]       = useState(userData.settings?.notifications!==false);
   const [showClear,     setShowClear]    = useState(false);
+
   const [expenses, setExpenses] = useState(userData.expenses||[]);
   const [goals,    setGoals]    = useState(userData.goals||[]);
+
   const [showGoalModal,    setShowGoalModal]    = useState(false);
   const [goalForm,         setGoalForm]         = useState({name:"",target:"",saved:"",color:"#4ECDC4",icon:"🎯"});
   const [editGoalId,       setEditGoalId]       = useState(null);
   const [showDeposit,      setShowDeposit]      = useState(null);
   const [depositForm,      setDepositForm]      = useState({amount:"",isWithdraw:false});
   const nextGid = useRef(700);
+
   const [showProfile,  setShowProfile]  = useState(false);
   const [profForm,     setProfForm]     = useState({name:userData.name||""});
   const [showLogout,   setShowLogout]   = useState(false);
@@ -303,7 +387,10 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
   useEffect(()=>{
     const updated = {expenses,goals,settings:{lang,currency,theme,dailyBudget,notifications}};
     setUserData(p=>({...p,...updated}));
-    if (userKey) { lsSet("dayspent_userdata", {...(lsGet("dayspent_userdata")||{}), ...updated}); sbSaveUser(userKey, updated); }
+    if (userKey) {
+      lsSet("dayspent_userdata", {...(lsGet("dayspent_userdata")||{}), ...updated});
+      sbSaveUser(userKey, updated);
+    }
   },[expenses,goals,lang,currency,theme,dailyBudget,notifications]);
 
   const T = {
@@ -360,6 +447,7 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
 
   const totToday = expenses.filter(e=>e.date===todayStr()).reduce((s,e)=>s+e.amount,0);
   const totAll   = expenses.reduce((s,e)=>s+e.amount,0);
+  // dailyBudget is stored in current currency units, convert to RUB for comparison with totToday
   const budN     = Number(dailyBudget)||0;
   const budNinRub = budN>0 ? budN / (RATES[currency]||1) : 0;
   const budPct   = budNinRub>0?Math.min(totToday/budNinRub,1):0;
@@ -378,17 +466,20 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
   const openEdit = (e) => { setEditId(e.id); const rate=RATES[currency]||1; setForm({amount:String(Math.round(e.amount*rate)),category:e.category,note:e.note,date:e.date}); setShowModal(true); };
   const saveExp  = () => {
     if(!form.amount||isNaN(+form.amount)||+form.amount<=0) return;
-    const rate = RATES[currency]||1; const amtInRub = +form.amount / rate;
+    const rate = RATES[currency]||1;
+    const amtInRub = +form.amount / rate;
     if(editId){setExpenses(p=>p.map(e=>e.id===editId?{...e,...form,amount:amtInRub}:e));showT(T.updated);}
     else{setExpenses(p=>[...p,{id:nextId.current++,...form,amount:amtInRub}]);showT(T.added);}
     setShowModal(false);
   };
   const delExp = (id) => { setExpenses(p=>p.filter(e=>e.id!==id)); showT(T.deleted,"error"); };
+
   const openAddGoal  = () => { setEditGoalId(null); setGoalForm({name:"",target:"",saved:"",color:"#4ECDC4",icon:"🎯"}); setShowGoalModal(true); };
   const openEditGoal = (g) => { setEditGoalId(g.id); const rate=RATES[currency]||1; setGoalForm({name:g.name,target:String(Math.round(g.target*rate)),saved:String(Math.round(g.saved*rate)),color:g.color,icon:g.icon}); setShowGoalModal(true); };
-  const saveGoal = () => {
+  const saveGoal     = () => {
     if(!goalForm.name||+goalForm.target<=0) return;
-    const rate=RATES[currency]||1; const tgt=+goalForm.target/rate; const sav=(+goalForm.saved||0)/rate;
+    const rate=RATES[currency]||1;
+    const tgt=+goalForm.target/rate; const sav=(+goalForm.saved||0)/rate;
     if(editGoalId){setGoals(p=>p.map(g=>g.id===editGoalId?{...g,...goalForm,target:tgt,saved:sav}:g));}
     else{setGoals(p=>[...p,{id:nextGid.current++,...goalForm,target:tgt,saved:sav}]);showT(T.gAdded);}
     setShowGoalModal(false);
@@ -396,7 +487,8 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
   const delGoal  = (id) => { setGoals(p=>p.filter(g=>g.id!==id)); showT(T.gDel,"error"); };
   const doDeposit= () => {
     const amt=+depositForm.amount; if(!amt||amt<=0) return;
-    const rate=RATES[currency]||1; const amtInRub=amt/rate;
+    const rate=RATES[currency]||1;
+    const amtInRub=amt/rate;
     setGoals(p=>p.map(g=>g.id!==showDeposit?g:{...g,saved:depositForm.isWithdraw?Math.max(0,g.saved-amtInRub):g.saved+amtInRub}));
     showT(depositForm.isWithdraw?T.wDone:T.depDone);
     setShowDeposit(null); setDepositForm({amount:"",isWithdraw:false});
@@ -440,7 +532,8 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
   `;
 
   return (
-    <div style={{minHeight:"100vh",background:CT.bg,color:"#F0EEE8",fontFamily:"'Outfit','Segoe UI',sans-serif",display:"flex",flexDirection:"column",width:"100%",maxWidth:430,margin:"0 auto",position:"relative",overflowX:"hidden"}}>
+    <div style={{minHeight:"100vh",background:CT.bg,color:"#F0EEE8",fontFamily:"'Outfit','Segoe UI',sans-serif",
+      display:"flex",flexDirection:"column",width:"100%",maxWidth:430,margin:"0 auto",position:"relative",overflowX:"hidden"}}>
       <style>{CSS}</style>
 
       {/* HEADER */}
@@ -685,6 +778,8 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
         {/* SETTINGS */}
         {page==="settings"&&(
           <div style={{padding:"17px 15px"}}>
+
+            {/* Account card */}
             <div style={{background:`linear-gradient(135deg,${av}22,${av}08)`,borderRadius:21,padding:"19px",border:`1.5px solid ${av}33`,marginBottom:21,display:"flex",alignItems:"center",gap:15}}>
               <div style={{width:60,height:60,borderRadius:18,background:av,display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,fontWeight:800,color:"#fff",boxShadow:`0 6px 20px ${av}55`,flexShrink:0}}>{getInitials(userName)}</div>
               <div style={{flex:1,minWidth:0}}>
@@ -695,6 +790,7 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
               <button className="tap" onClick={()=>{setProfForm({name:userData.name||""});setShowProfile(true);}} style={{background:"rgba(255,255,255,.08)",border:"none",borderRadius:11,padding:"8px 11px",fontSize:12,color:"#aaa",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>✏️</button>
             </div>
 
+            {/* Language */}
             <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:7,paddingLeft:3}}>{T.lang}</div>
             <div style={{background:CT.card,borderRadius:17,padding:"5px 15px",border:"1px solid rgba(255,255,255,.06)",marginBottom:17}}>
               {[{id:"ru",label:"Русский",flag:"🇷🇺"},{id:"en",label:"English",flag:"🇺🇸"}].map(l=>(
@@ -708,6 +804,7 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
               ))}
             </div>
 
+            {/* Currency */}
             <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:7,paddingLeft:3}}>{T.cur}</div>
             <div style={{background:CT.card,borderRadius:17,padding:"5px 15px",border:"1px solid rgba(255,255,255,.06)",marginBottom:17}}>
               {CURRENCIES.map(c=>(
@@ -724,6 +821,7 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
               ))}
             </div>
 
+            {/* Theme */}
             <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:7,paddingLeft:3}}>{T.themeL}</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:17}}>
               {THEMES.map(th=>(
@@ -737,17 +835,20 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
               ))}
             </div>
 
+            {/* Budget */}
             <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:7,paddingLeft:3}}>{T.budget}</div>
             <div style={{background:CT.card,borderRadius:17,padding:"14px",border:"1px solid rgba(255,255,255,.06)",marginBottom:17,overflow:"hidden"}}>
               <div style={{fontSize:12,color:"#666",marginBottom:8}}>{T.budgetH}</div>
               <div style={{display:"flex",alignItems:"center",gap:9,width:"100%",minWidth:0}}>
                 <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",background:"rgba(255,255,255,.05)",borderRadius:11,padding:"8px 12px",border:"1.5px solid rgba(255,255,255,.08)"}}>
-                  <input type="number" value={dailyBudget} onChange={e=>setDailyBudget(e.target.value)} onBlur={()=>showT(T.savedM)} placeholder="0" style={{flex:1,minWidth:0,width:"100%",fontSize:21,fontWeight:800,color:"#C3A6FF"}}/>
+                  <input type="number" value={dailyBudget} onChange={e=>setDailyBudget(e.target.value)} onBlur={()=>showT(T.savedM)} placeholder="0"
+                    style={{flex:1,minWidth:0,width:"100%",fontSize:21,fontWeight:800,color:"#C3A6FF"}}/>
                   <div style={{fontSize:15,color:"#666",fontWeight:700,marginLeft:6,flexShrink:0}}>{CSym}</div>
                 </div>
               </div>
             </div>
 
+            {/* Notifications */}
             <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:7,paddingLeft:3}}>{T.notifL}</div>
             <div style={{background:CT.card,borderRadius:17,padding:"5px 15px",border:"1px solid rgba(255,255,255,.06)",marginBottom:17}}>
               <div className="sr">
@@ -763,6 +864,7 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
               </div>
             </div>
 
+            {/* Data */}
             <div style={{fontSize:10,color:"#555",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:7,paddingLeft:3}}>{T.dataL}</div>
             <div style={{background:CT.card,borderRadius:17,padding:"5px 15px",border:"1px solid rgba(255,255,255,.06)",marginBottom:17}}>
               <div className="sr tap" onClick={()=>setShowClear(true)}>
@@ -772,12 +874,16 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
               </div>
             </div>
 
+            {/* Logout */}
             <button className="tap" onClick={()=>setShowLogout(true)} style={{width:"100%",padding:"14px",border:"1.5px solid rgba(255,107,107,.3)",borderRadius:17,cursor:"pointer",background:"rgba(255,107,107,.08)",color:"#FF6B6B",fontSize:14,fontWeight:700,fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:17}}>
               🚪 {T.logout}
             </button>
 
+            {/* About */}
             <div style={{background:CT.card,borderRadius:17,padding:"18px",border:"1px solid rgba(255,255,255,.06)",textAlign:"center",marginBottom:20}}>
-              <div style={{fontSize:28,marginBottom:8}}>💸</div>
+              <div style={{width:64,height:64,borderRadius:18,overflow:"hidden",margin:"0 auto 10px"}}>
+                <img src="data:image/png;base64,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vnTDJed1d7Rros99547+ofE/v/lt1118wVM7X31h1759Y5n9Rw6nE7HF83o2rFi+ZsmiZCLuKHXHg4/kQOzZ13/a6mUff+87l61YvH9odO/r+49mJt+xbeueI4NXfuyzmWzhxusuv+3PbjnttPW7B0eeenpnKhW7cMvGp3a9/vj+QyVXtcfErR/7wJbN6/YOjx0dGh/LTr9920Xtifjhqenh4bGz1q/60M1vu+zcMzcsX+pJnGMYNmEkvH4yEIGYTSOq+tlfzTaCeXqECdI6HU8s713Qv/fQRL54ZGLiwWd38kTs9g/+yUfefj0AfOidb73sz//66Vf3MAQCuvK8sxct6BnoP/Kzhx//zHtueu1A/+MvvWa2JG68bCsA/M0H3tU/OPybF167485777j3N6uXLHzbRW/6xLve0dXWhkQIKAuFC05b+9B3vho3TQBY1bfg09/6918++/JENvuL3zyRH5m88oqLf3L7X3sP2jOn80N/87UfP/Cb//Xem4QQ0nbmtqbu//aXl/f2AkA6lbj12z94+cDh6ULhluuuenrvwZ0vvLZ5xeK/fv/NgXBHrE5E9xPrqS6/C5snwDBCL1J3vJA2EWjCZpqxbgu8u0ipkChmGHsHBp1iubuj9R3bL1Faly07FYvduP1CqFS8ns7tqdTbt54Hmv7zoScB4N7fPlMen7zkjE2bV68kot653b/67lfu+/ptH775rWsW9+3tP/Klf/7JWz5xW6Fc9u0Hy77xikviplm2LKX1jVdtmzOns1Qsv3JgYNehQUyldh8ePvPmD2+88X+cftOHvvajn7uM7z4yPF0qmoKDZS/tnbest9dxXaX0eZvWa87LrqzYrlK6VLGAc9txpVKO4xJQTf4R1da4hahnk67yWqISUO3PjcdISqozxqmasODPC1dKSQKldcwwhiczv+s/QqaxfkmfB7Oh367Wf07DMMCf344A9O5rL/vOzx947eCR+5/Z8evndgLn7712OwK4SjLGgMHVF59/9cXn54ulf7n7l5+/42fP7Nz94DPPv/3Si5XW/jRQCkZ+ab+0QGntBT9iptHSko67ihjMS6c3rV7OSJuMaU1ee2JNxBnjnBGR1xYaATj3/RSKAJr1dT2BYxPWrlCzZCXtt5EIC1SOa+RTkH5Q09yfAIgxljBMz04qVip/+X/+39hkpntu59YzN49NZszW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" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"inherit"}}/>
+              </div>
               <div style={{fontSize:15,fontWeight:800,letterSpacing:-.5}}>DaySpent</div>
               <div style={{fontSize:12,color:"#555",marginTop:3}}>{T.ver}</div>
               <div style={{fontSize:11,color:"#444",marginTop:5}}>{T.made}</div>
@@ -979,6 +1085,7 @@ function MainApp({ userKey, userData, setUserData, onLogout }) {
     </div>
   );
 }
+
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App/>);
